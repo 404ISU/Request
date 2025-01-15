@@ -6,37 +6,36 @@ const axios = require('axios');
 router.post('/makeRequest', async (req, res) => {
     const { url, method, headers, body } = req.body;
     try {
-        const response = await axios({
-            method,
-            url,
-            headers,
-            body
-        });
-
-        const newRequest = new Request({ url, method, headers });
-        await newRequest.save();
-
-        const responseData = {
-             response: response.data,  // Исправлено: response: response.data
-             status: response.status,
-             headers: response.headers
-        };
-
-        res.status(200).json(responseData);
-    }  catch (error) {
-         const newRequest = new Request({ url, method, headers });
-         await newRequest.save();
-
-        const errorResponse = {
-            message: error.message,
-            status: error.response ? error.response.status : undefined,
-            headers: error.response ? error.response.headers : undefined,
-            error: error.response ? error.response.data : undefined,
-        };
-        res.status(500).json(errorResponse);
+      const response = await axios({
+        method,
+        url,
+        headers,
+        data: body, // Передача тела запроса
+      });
+  
+      // Сохранение запроса в базе данных
+      const newRequest = new Request({ url, method, headers, body });
+      await newRequest.save();
+  
+      res.status(200).json({
+        response: response.data,
+        status: response.status,
+        headers: response.headers,
+      });
+    } catch (error) {
+      // Сохранение неудачного запроса в базе данных
+      const newRequest = new Request({ url, method, headers, body });
+      await newRequest.save();
+  
+      res.status(500).json({
+        message: error.message,
+        status: error.response?.status,
+        headers: error.response?.headers,
+        error: error.response?.data,
+      });
     }
-});
-
+  });
+  
 router.get('/history', async (req, res) => {
     try {
         const requests = await Request.find().sort({ timestamp: -1 }).limit(10);
