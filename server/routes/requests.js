@@ -5,6 +5,7 @@ const axios = require('axios');
 
 router.post('/makeRequest', async (req, res) => {
     const { url, method, headers, body } = req.body;
+    console.log('Received request:', {url, method, headers, body});
     try {
       const response = await axios({
         method,
@@ -24,6 +25,7 @@ router.post('/makeRequest', async (req, res) => {
       });
     } catch (error) {
       // Сохранение неудачного запроса в базе данных
+      console.error('Error making request:', error)
       const newRequest = new Request({ url, method, headers, body });
       await newRequest.save();
   

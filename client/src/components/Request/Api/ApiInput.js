@@ -1,11 +1,19 @@
 import React from 'react';
+import { TextField } from '@mui/material';
+
 
 const ApiInput = ({ value, onChange }) => {
   return (
-    <div>
-      <label>API URL:</label>
-      <input type="text" value={value} onChange={onChange} />
-    </div>
+    <TextField
+    label="API URL"
+    value={value}
+    onChange={onChange}
+    fullWidth
+    margin='normal'
+    placeholder='https://api.exampel.com/endpoint'
+    variant='outlined'
+    >
+    </TextField>
   );
 };
 
