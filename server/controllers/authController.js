@@ -1,165 +1,99 @@
-const jwt = require('jsonwebtoken');
-const User = require('../models/User.js');
-const Organization = require('../models/Organization.js');
-const {
-  registerOrganizationSchema,
-  registerEmployeeSchema,
-  loginSchema,
-} = require('../utils/validationSchema.js');
+const User = require('../models/User');
+const {generateToken}=require('../utils/jwtUtils');
+const {validationResult} = require('express-validator');
 
-// регистрация организации
-const registerOrganization = async (req, res) => {
-  const { error } = registerOrganizationSchema.validate(req.body);
-  if (error) {
-    return res.status(400).json({ error: error.details[0].message });
+const registerOrganization = async (req,res)=>{
+  const errors =validationResult(req);
+  if(!errors.isEmpty()){
+    return res.status(400).json({errors: errors.array()});
   }
 
-  const {
-    name,
-    address,
-    phone,
-    username,
-    email,
-    password,
-    firstName,
-    lastName,
-    middleName,
-    personalPhone,
-  } = req.body;
+  const {email, password, organizationName, organizationAddress, organizationPhone, firstName, lastName, middleName }=req.body;
 
-  try {
-    const organization = new Organization({ name, address, phone });
-    await organization.save();
+  try{
+    const userExist = await User.findOne({email});
+    if(userExist){
+      return res.status(400).json({message: 'User already exist'})
+    
+      const user = new User({
+        email,
+        password,
+        role: 'organization',
+        organizationName,
+        organizationAddress,
+        organizationPhone,
+        firstName,
+        lastName,
+        middleName,
+      });
 
-    const user = new User({
-      username,
-      email,
-      password,
-      role: 'organization',
-      organization: organization._id,
-      firstName,
-      lastName,
-      middleName,
-      phone: personalPhone,
-    });
-    await user.save();
+      await user.save();
 
-    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, {
-      expiresIn: '1h',
-    });
 
-    res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
-    res.status(201).json({ message: 'User registered successfully', user });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
+      const token = generateToken(user._id, user.role);
+
+
+      res.cookie('token', token, {
+        httpOnly: true,
+        sameSite: 'Strict',
+        maxAge: 3600000, // 1 hour
+
+      })
+    res.status(201).json({message: 'Organization registered', token, user: {_id: user._id, email: user.email, role: user.role}});
+    }
+  }catch(error){
+      res.status(500).json({message: 'Server error'});
+    }
 };
 
-// регистрация сотрудника
-const registerEmployee = async (req, res) => {
-  const { error } = registerEmployeeSchema.validate(req.body);
-  if (error) {
-    return res.status(400).json({ error: error.details[0].message });
+const login = async (req, res)=>{
+  const errors = validationResult(req);
+  if(!errors.isEmpty()){
+    return res.status(400).json({errors: errors.array()})
   }
 
-  const { username, email, password, organizationId, firstName, lastName, middleName, phone } = req.body;
+  const {email, password} = req.body;
 
   try {
-    const user = new User({
-      username,
-      email,
-      password,
-      role: 'employee',
-      organization: organizationId,
-      firstName,
-      lastName,
-      middleName,
-      phone,
-    });
-    await user.save();
+    const user = await User.findOne({email});
 
-    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, {
-      expiresIn: '1h',
-    });
-
-    res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
-    res.status(201).json({ message: 'Employee registered successfully', user });
-  } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-// авторизация пользователя
-const login = async (req, res) => {
-  const { error } = loginSchema.validate(req.body);
-  if (error) {
-    return res.status(400).json({ error: error.details[0].message });
-  }
-
-  const { emailOrUsername, password } = req.body;
-
-  try {
-    const user = await User.findOne({
-      $or: [{ email: emailOrUsername }, { username: emailOrUsername }],
-    });
-
-    if (!user) {
-      return res.status(400).json({ error: 'User not found' });
+    if(!user || !(await user.comparePassword(password))){
+      return res.status(401).json({message: 'Invalid credentials'});
     }
 
-    const isMatch = await user.comparePassword(password);
-    if (!isMatch) {
-      return res.status(400).json({ error: 'Invalid password' });
-    }
-
-    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, {
-      expiresIn: '1h',
+    const token = generateToken(user._id, user.role);
+    res.cookie('token', token, {
+      httpOmly: true,
+      sameSite: 'Strict',
+      maxAge: 3600000,
     });
 
-    res.cookie('token', token, { httpOnly: true, maxAge: 3600000 });
-    res.status(200).json({ message: 'Login successful', user });
+    res.status(200).json({message: 'Logged in', token, user: {_id: user._id, email: user.email, role: user.role}});
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({message: 'Server error'});
   }
 };
 
-// выход из системы
-const logout = (req, res) => {
+const logout = (req, res)=>{
   res.clearCookie('token');
-  res.status(200).json({ message: 'Logout successful' });
-};
+  res.json({message: 'Logged out'});
+}
 
-// получение данных пользователя
-const getMe = async (req, res) => {
+const getMe = async (req,res)=>{
   try {
-    const user = await User.findById(req.user.userId).select('-password');
-    res.status(200).json(user);
+    const user = await User.findById(req.user._id).select('-password');
+    if(!user){
+      return res.status(404).json({message: 'User not found'});
+    }
+    res.json(user);
   } catch (error) {
-    res.status(400).json({ error: error.message });
-  }
-};
-
-// обновление данных пользователя
-const updateMe = async (req, res) => {
-  const { middleName, firstName, lastName, phone } = req.body;
-
-  try {
-    const user = await User.findByIdAndUpdate(
-      req.user.userId,
-      { personalData: { middleName, firstName, lastName, phone } },
-      { new: true }
-    ).select('-password');
-    res.status(200).json(user);
-  } catch (error) {
-    res.status(400).json({ error: error.message });
+    res.status(500).json({message: 'Server error'})
   }
 };
 
 module.exports = {
   registerOrganization,
-  registerEmployee,
   login,
   logout,
   getMe,
-  updateMe,
 };

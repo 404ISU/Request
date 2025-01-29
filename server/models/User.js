@@ -1,32 +1,50 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const {Schema}=mongoose;
+
 
 const userSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
-  username: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
-  role: { type: String, enum: ['admin', 'organization', 'employee'], required: true },
-  organizations: { type: mongoose.Schema.Types.ObjectId, ref: 'Organization' }, // Для работников и организаций
-  personalData: {
-    firstName: { type: String, required: true },
-    lastName: { type: String, required: true },
-    middleName: { type: String, required: true },
-    phone: { type: String, required: true },
-    createdAt: { type: Date, default: Date.now },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
   },
+  password: {
+    type: String,
+    required: true,
+  },
+  role: {
+    type: String,
+    enum: ['admin','organization','employee'], 
+    required: true,
+  },
+  organizationName: {type: String, required: function() {return this.role === 'organization'}},
+  organizationAddress: {type: String, required: function() {return this.role === 'organization'}},
+  organizationPhone: {type: String, required: function(){return this.role === 'organization'}},
+  firstName: {type: String, required: function(){return this.role === 'organization'}},
+  lastName: {type: String, required: function(){return this.role === 'organization'}},
+  middleName: {type: String, required: function(){return this.role === 'organization'}},
+  organizationId: {type: Schema.Types.ObjectId, ref: 'User', required: function(){return this.role === 'employee'}},
+  createdAt: {type: Date, default: Date.now}
 });
 
-// Хэширование пароля перед сохранением
-userSchema.pre('save', async function (next) {
-  if (this.isModified('password')) {
-    this.password = await bcrypt.hash(this.password, 10);
+userSchema.pre('save', async function(next){
+  if(!this.isModified('password')){
+    return next();
   }
-  next();
+
+  try{
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  }catch(error){
+    return next(error)
+  }
 });
 
-// Метод для проверки пароля
-userSchema.methods.comparePassword = async function (password) {
-  return await bcrypt.compare(password, this.password);
-};
+userSchema.methods.comparePassword = async function(candidatePassword){
+  return bcrypt.compare(candidatePassword, this.password);
+}
 
-module.exports = mongoose.model('User', userSchema);
+const User = mongoose.model('User', userSchema);
+module.exports= User;

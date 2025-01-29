@@ -1,25 +1,36 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
-const authRoutes = require('./routes/authRoutes'); // Импорт маршрутов авторизации
+const connectDB = require('./config/database');
+const authRoutes =require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
+const requestRoutes = require('./routes/requests');
+const {PORT} = require('./config/configurate');
+
 
 const app = express();
-const PORT = process.env.PORT || 5001;
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+const corsOptions = {
+  origin: 'http://localhost:3000', // Заменить на ваш клиентский домен
+  methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  credentials: true,
+  optionsSuccessStatus: 204,
+  allowedHeaders: 'Content-Type,Authorization'
+};
+app.use(cors(corsOptions));
 app.use(express.json());
+app.use(cookieParser());
 
-// Подключение маршрутов
-app.use('/api/auth', authRoutes); // Убедитесь, что этот путь совпадает с фронтендом
 
-// Подключение к MongoDB
-mongoose.connect('mongodb://localhost:27017/Requester', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-mongoose.connection.on('connected', () => console.log('Connected to MongoDB'));
-mongoose.connection.on('error', (err) => console.error('MongoDB connection error:', err));
+// Routes
+app.use('/api/requests', requestRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
-// Запуск сервера
+
+
+// Connect to MongoDB
+connectDB()
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
