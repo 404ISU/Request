@@ -1,29 +1,21 @@
 const express = require('express');
-const { registerOrganization, login, logout, getMe } = require('../controllers/authController');
-const { authMiddleware } = require('../middleware/authMiddleware');
-const { body } = require('express-validator');
-
 const router = express.Router();
+const cors = require('cors');
+const  bcrypt  =  require ( 'bcrypt' ) ; 
 
-router.post('/register',
-    [
-        body('email').isEmail().withMessage('Must be a valid email'),
-        body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long'),
-        body('organizationName').notEmpty().withMessage('Organization name is required'),
-        body('organizationAddress').notEmpty().withMessage('Organization address is required'),
-        body('organizationPhone').notEmpty().withMessage('Organization phone is required'),
-        body('firstName').notEmpty().withMessage('First name is required'),
-        body('lastName').notEmpty().withMessage('Last name is required'),
-        body('middleName').notEmpty().withMessage('Middle name is required'),
-    ],
-    registerOrganization);
-router.post('/login',
-    [
-        body('email').isEmail().withMessage('Must be a valid email'),
-        body('password').notEmpty().withMessage('Password is required')
-    ],
-    login);
-router.get('/logout', logout);
-router.get('/me', authMiddleware, getMe);
+const {test, registerUser, loginUser, getProfile} =require('../controllers/authControllers')
 
-module.exports = router;
+// middlleware
+router.use(
+  cors({
+    credentials: true,
+    origin: 'http://localhost:5173'
+  })
+)
+
+router.get('/', test)
+router.post('/register', registerUser)
+router.post('/login', loginUser)
+router.get('/profile', getProfile)
+
+module.exports = router
