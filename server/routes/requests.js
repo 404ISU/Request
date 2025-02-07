@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Request = require('../models/Request');
 const axios = require('axios');
+const cors = require('cors');
+
 
 router.post('/makeRequest', async (req, res) => {
     const { url, method, headers, body } = req.body;
@@ -46,5 +48,12 @@ router.get('/history', async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+router.use(
+  cors({
+    credentials: true,
+    origin: 'http://localhost:5173'
+  })
+)
 
 module.exports = router;

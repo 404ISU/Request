@@ -3,7 +3,7 @@ const router = express.Router();
 const cors = require('cors');
 const  bcrypt  =  require ( 'bcrypt' ) ; 
 
-const {test, registerUser, loginUser, getProfile} =require('../controllers/authControllers')
+const { registerUser, loginUser, getProfile, logout} =require('../controllers/authControllers')
 
 // middlleware
 router.use(
@@ -13,9 +13,10 @@ router.use(
   })
 )
 
-router.get('/', test)
+
 router.post('/register', registerUser)
 router.post('/login', loginUser)
 router.get('/profile', getProfile)
+router.post('/logout', logout)
 
 module.exports = router

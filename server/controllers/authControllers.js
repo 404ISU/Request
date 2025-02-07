@@ -3,11 +3,6 @@ const {hashPassword, comparePassword}=require('../helpers/auth');
 const  bcrypt  =  require ( 'bcrypt' ) ; 
 const jwt = require('jsonwebtoken');
 
-// тест
-const test = (req,res)=>{
-  res.json('test is working');
-}
-
 
 // регистрация
 const registerUser = async(req,res)=>{
@@ -45,6 +40,7 @@ const loginUser = async(req,res)=>{
     try {
       const {username, password}= req.body;
 
+      
 
       // проверка если пользователь существует
       const user = await User.findOne({username});
@@ -84,9 +80,16 @@ const getProfile=(req,res)=>{
   }
 }
 
+//выход
+const logout = async (req,res)=>{
+  res.clearCookie("token");
+  res.json({message: "выход выполнен"})
+}
+
 module.exports = {
-  test,
+
   registerUser,
   loginUser,
-  getProfile
+  getProfile,
+  logout
 }

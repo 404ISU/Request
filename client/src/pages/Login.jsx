@@ -24,7 +24,7 @@ export default function Login(){
       }else{
         setData({});
         toast.success('Вход прошел успешно!')
-        navigate('/dashboard')
+        navigate('/')
       }
     } catch (error) {
       conole.error(error)
