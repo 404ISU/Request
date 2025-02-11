@@ -5,6 +5,18 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 const BodyInput = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isValidJson, setIsValidJson] = useState(true);
+
+  const handleChange = (e) => {
+    const newValue = e.target.value;
+    onChange(e);
+    try {
+      JSON.parse(newValue);
+      setIsValidJson(true);
+    } catch (error) {
+      setIsValidJson(false);
+    }
+  };
 
   return (
     <div>
@@ -14,13 +26,15 @@ const BodyInput = ({ value, onChange }) => {
       <Collapse in={isOpen}>
         <TextField
           value={value}
-          onChange={onChange}
+          onChange={handleChange}
           fullWidth
           multiline
           rows={5}
           placeholder='{"key": "value"}'
           variant="outlined"
           margin="normal"
+          error={!isValidJson}
+          helperText={!isValidJson ? 'Invalid JSON' : ''}
         />
       </Collapse>
     </div>

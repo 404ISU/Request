@@ -43,6 +43,9 @@ const Navbar = () => {
           <Link to="/"><Home /> Главная</Link>
           <Link to="/request">HTTP Запрос</Link>
           <Link to="/dashboard">{user.name}</Link>
+          <Link to='/user-profile'>профиль</Link>
+            <Link to="/manage-workers">Организация</Link>
+          
           <button onClick={handleLogout}>Выход</button>
         </>
       )}

@@ -1,5 +1,6 @@
 import React from 'react';
-import {Select, MenuItem, FormControl, InputLabel} from '@mui/material';
+import { Select, MenuItem, FormControl, InputLabel } from '@mui/material';
+
 const MethodSelector = ({ value, onChange }) => {
   return (
     <FormControl fullWidth margin='normal' variant='outlined'>
@@ -12,6 +13,8 @@ const MethodSelector = ({ value, onChange }) => {
         <MenuItem value="patch">PATCH</MenuItem>
         <MenuItem value="options">OPTIONS</MenuItem>
         <MenuItem value="head">HEAD</MenuItem>
+        <MenuItem value="connect">CONNECT</MenuItem>
+        <MenuItem value="trace">TRACE</MenuItem>
       </Select>
     </FormControl>
   );

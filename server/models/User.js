@@ -9,11 +9,25 @@ const userSchema = new mongoose.Schema({
   name: String,
   firstName: String,
   lastName: String,
-  organizationName: { type: String, required: true },
-  organizationAddress: { type: String, required: true },
-  organizationPhone: { type: String, required: true },
-  // organization Organization @relative(fields: [organization_id] /refarence: [id])
-  // organization_id String
+  organizationName: {
+    type: String,
+    required: function () {
+      return this.role === 'organization';
+    },
+  },
+  organizationAddress: {
+    type: String,
+    required: function () {
+      return this.role === 'organization';
+    },
+  },
+  organizationPhone: {
+    type: String,
+    required: function () {
+      return this.role === 'organization';
+    },
+  },
+  organizationId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // Связь с организацией
 });
 
 

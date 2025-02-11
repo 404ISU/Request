@@ -68,15 +68,80 @@ const loginUser = async(req,res)=>{
 
 
 // профиль полЬователя
-const getProfile=(req,res)=>{
-  const {token}=req.cookies
-  if(token){
-    jwt.verify(token, process.env.JWT_SECRET, {}, (err, user)=>{
-      if(err) throw err;
-      res.json(user)
+const getProfile= async (req,res)=>{
+  const token=req.cookies.token;
+  if(!token)return res.status(401).json({error: 'Необходима авторизация'});
+
+  try {
+    jwt.verify(token, process.env.JWT_SECRET, async(err,decoded)=>{
+      if(err) return res.status(401).json({error: 'Неверный токен'});
+
+      const user = await User.findById(decoded.id).select('-password');
+      if(!user){
+        return res.status(404).json({error: 'Пользователь не найден'});
+      }
+      res.json(user);
     })
-  }else{
-    res.json(null)
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({error: 'ошибка сервера'})
+  }
+}
+
+
+// обновление пользователя
+const updateProfile = async (req,res)=>{
+  const token = req.cookies.token;
+
+
+  if(!token) return res.status(401).json({error: 'необходима авторизация'});
+
+  try {
+    const {username, email, password, firstName, lastName, name} = req.body;
+
+    jwt.verify(token, process.env.JWT_SECRET, async (err, decoded)=>{
+      if(err) return res.status(401).json({error: 'неверный токен'});
+      const user = await User.findById(decoded.id);
+
+      // проверка на уникальность email
+      if(email !== user.email){
+        const existingUser = await User.findOne({email});
+        if(existingUser){
+          return res.status(400).json({error: 'Пользователь с таким email уже существует'});
+        }
+      }
+
+      // проверка на уникальность логина
+      if(username !== user.username){
+        const existingUser = await User.findOne({username});
+        if(existingUser){
+          return res.status(400).json({error: 'пользователь с таким логином уже существует'})
+        }
+      }
+
+
+      // обновляем данные пользователем
+      user.username = username || user.username;
+      user.email = email || user.email;
+
+
+      // если новый пароль передан хешируем его
+      if(password){
+        const hashedPassword = await bcrypt.hash(password, 12);
+        user.password = hashedPassword;
+      }
+
+      // обновляем имя фамилию и пароль
+      user.name = name || user.name;
+      user.firstName = firstName || user.firstName;
+      user.lastName = lastName || user.lastName;
+
+      await user.save();
+      res.json({message: 'профиль успешно изменен', user})
+    })
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({error: 'ошибка сервера'})
   }
 }
 
@@ -86,10 +151,14 @@ const logout = async (req,res)=>{
   res.json({message: "выход выполнен"})
 }
 
+
+
+
 module.exports = {
 
   registerUser,
   loginUser,
   getProfile,
-  logout
+  logout,
+  updateProfile,
 }

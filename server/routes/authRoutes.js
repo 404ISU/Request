@@ -3,7 +3,7 @@ const router = express.Router();
 const cors = require('cors');
 const  bcrypt  =  require ( 'bcrypt' ) ; 
 
-const { registerUser, loginUser, getProfile, logout} =require('../controllers/authControllers')
+const { registerUser, loginUser, getProfile, logout, updateProfile} =require('../controllers/authControllers')
 
 // middlleware
 router.use(
@@ -14,9 +14,19 @@ router.use(
 )
 
 
-router.post('/register', registerUser)
-router.post('/login', loginUser)
-router.get('/profile', getProfile)
-router.post('/logout', logout)
+// Регистрация
+router.post('/register', registerUser);
 
-module.exports = router
+// Авторизация
+router.post('/login', loginUser);
+
+// Профиль пользователя
+router.get('/profile', getProfile); // Убедитесь, что этот маршрут существует
+
+// Выход
+router.post('/logout', logout);
+
+// Обновление профиля
+router.put('/update-profile', updateProfile);
+
+module.exports = router;

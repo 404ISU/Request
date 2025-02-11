@@ -1,0 +1,14 @@
+{
+  // Настройка цвета комментариев
+  "editor.tokenColorCustomizations": {
+      // Изменение цвета комментариев для всех тем
+      "comments": "#00ffeea4", 
+      "keywords": "#00d9ffda", // Ключевые слова языка (например, if, else, return)
+      "numbers": "#33FFCE", // Числа
+      "variables": "#FF69B4", // Переменные
+      "functions": "#c35af0", // Функции
+      "operators": "#FF7F50", // Операторы (например, +, -, *, /)
+      "typeKeywords": "#1ABC9C", // Типы данных (например, int, string, boolean)
+  }
+
+}
