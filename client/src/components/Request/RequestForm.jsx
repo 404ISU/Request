@@ -156,7 +156,9 @@ const RequestForm = () => {
 
   const fetchHistory = async () => {
     try {
-      const historyResponse = await axios.get('http://localhost:5001/api/requests/history');
+      const historyResponse = await axios.get('http://localhost:5001/api/requests/history', {
+        withCredentials: true, // передаем cookies для аутентификации
+      });
       setRequestHistory(historyResponse.data);
     } catch (error) {
       console.error('Error fetching history:', error);
