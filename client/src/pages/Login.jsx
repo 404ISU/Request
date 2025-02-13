@@ -27,7 +27,7 @@ export default function Login(){
         navigate('/')
       }
     } catch (error) {
-      conole.error(error)
+      console.error(error)
     }
   };
   return (

@@ -3,21 +3,25 @@
 import React, { useState } from 'react';
 import { Paper, Typography, List, ListItem, ListItemText, Button, Box } from '@mui/material';
 
-const RequestHistory = ({ requests }) => {
-  const [page, setPage] = useState(1);
-  const itemsPerPage = 5;
+const RequestHistory = ({ requests, onReuseRequest }) => {
+  const [page, setPage] = useState(1); // Текущая страница
+  const itemsPerPage = 5; // Количество запросов на странице
 
-  // Фильтруем запросы на страницу
+  // Разделяем запросы на страницы
   const paginatedRequests = requests.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
   return (
     <Paper elevation={3} sx={{ p: 3, mb: 3, backgroundColor: 'background.paper' }}>
-      <Typography variant="h6" gutterBottom sx={{ color: 'text.primary' }}>
+      <Typography variant="h6" gutterBottom>
         История запросов:
       </Typography>
       <List>
-        {paginatedRequests.map((req, index) => (
-          <ListItem key={req._id}>
+        {paginatedRequests.map((req) => (
+          <ListItem
+            key={req._id}
+            button
+            onClick={() => onReuseRequest(req)} // Вызываем обработчик при клике
+          >
             <ListItemText
               primary={`${req.method.toUpperCase()} - ${req.url}`}
               secondary={new Date(req.timestamp).toLocaleString()}
@@ -25,12 +29,20 @@ const RequestHistory = ({ requests }) => {
           </ListItem>
         ))}
       </List>
+
+      {/* Пагинация */}
       {requests.length > itemsPerPage && (
         <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 2 }}>
-          <Button onClick={() => setPage(page - 1)} disabled={page === 1}>
+          <Button
+            onClick={() => setPage(page - 1)}
+            disabled={page === 1} // Отключаем кнопку "Назад" на первой странице
+          >
             Назад
           </Button>
-          <Button onClick={() => setPage(page + 1)} disabled={page * itemsPerPage >= requests.length}>
+          <Button
+            onClick={() => setPage(page + 1)}
+            disabled={page * itemsPerPage >= requests.length} // Отключаем кнопку "Вперед" на последней странице
+          >
             Вперед
           </Button>
         </Box>

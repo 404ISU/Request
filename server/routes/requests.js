@@ -2,9 +2,12 @@
 const express = require('express');
 const router = express.Router();
 const Request = require('../models/Request');
+const Response = require('../models/Response');
 const axios = require('axios');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
+
+// routes/requests.js
 
 router.post('/makeRequest', async (req, res) => {
   const token = req.cookies.token;
@@ -21,23 +24,50 @@ router.post('/makeRequest', async (req, res) => {
     // Проверяем токен
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Создаем новый запрос
+    // Преобразуем headers и body в JSON (если они undefined или уже объекты)
+    let parsedHeaders = {};
+    let parsedBody = null;
+
+    if (typeof headers === 'string') {
+      parsedHeaders = headers ? JSON.parse(headers) : {};
+    } else if (typeof headers === 'object') {
+      parsedHeaders = headers; // Если уже объект, оставляем как есть
+    }
+
+    if (typeof body === 'string') {
+      parsedBody = body ? JSON.parse(body) : null;
+    } else if (typeof body === 'object') {
+      parsedBody = body; // Если уже объект, оставляем как есть
+    }
+
+    // Выполняем запрос
     const response = await axios({
       method,
       url,
-      headers: headers || {},
-      data: body || null,
+      headers: parsedHeaders,
+      data: parsedBody,
       timeout: 10000, // 10 секунд таймаут
     });
 
-    // Сохраняем запрос в базу данных с userId
+    // Создаем документ для результата запроса
+    const newResponse = new Response({
+      status: response.status,
+      body: response.data,
+      headers: response.headers,
+    });
+
+    await newResponse.save();
+
+    // Создаем документ для самого запроса
     const newRequest = new Request({
       url,
       method,
-      headers,
-      body,
-      userId: decoded.id, // Привязываем к пользователю
+      headers: typeof headers === 'string' ? headers : JSON.stringify(headers),
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+      userId: decoded.id,
+      response: newResponse._id, // Связываем запрос с результатом
     });
+
     await newRequest.save();
 
     res.status(200).json({
@@ -49,13 +79,42 @@ router.post('/makeRequest', async (req, res) => {
     console.error('Ошибка при выполнении запроса:', error);
 
     // Сохраняем запрос даже при ошибке
-    const newRequest = new Request({
-      url: req.body.url,
-      method: req.body.method,
-      headers: req.body.headers,
-      body: req.body.body,
-      userId: decoded.id, // Привязываем к пользователю
+    const { url, method, headers, body } = req.body;
+
+    let parsedHeaders = {};
+    let parsedBody = null;
+
+    if (typeof headers === 'string') {
+      parsedHeaders = headers ? JSON.parse(headers) : {};
+    } else if (typeof headers === 'object') {
+      parsedHeaders = headers;
+    }
+
+    if (typeof body === 'string') {
+      parsedBody = body ? JSON.parse(body) : null;
+    } else if (typeof body === 'object') {
+      parsedBody = body;
+    }
+
+    // Создаем документ для результата запроса (ошибки)
+    const newResponse = new Response({
+      status: error.response?.status || 500,
+      body: error.response?.data || {},
+      headers: error.response?.headers || {},
     });
+
+    await newResponse.save();
+
+    // Создаем документ для самого запроса
+    const newRequest = new Request({
+      url,
+      method,
+      headers: typeof headers === 'string' ? headers : JSON.stringify(headers),
+      body: typeof body === 'string' ? body : JSON.stringify(body),
+      userId: decoded.id,
+      response: newResponse._id, // Связываем запрос с результатом
+    });
+
     await newRequest.save();
 
     res.status(error.response?.status || 500).json({
@@ -66,28 +125,28 @@ router.post('/makeRequest', async (req, res) => {
     });
   }
 });
-// routes/requests.js
+
 
 router.get('/history', async (req, res) => {
-    const token = req.cookies.token;
-  
-    if (!token) return res.status(401).json({ message: 'Необходима авторизация' });
-  
-    try {
-      // Проверяем токен
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-  
-      // Получаем историю запросов для текущего пользователя
-      const requests = await Request.find({ userId: decoded.id })
-        .sort({ timestamp: -1 }) // Сортируем по времени (от новых к старым)
-        .limit(10); // Ограничиваем количество записей
-  
-      res.status(200).json(requests);
-    } catch (error) {
-      console.error('Ошибка при получении истории запросов:', error);
-      res.status(500).json({ error: error.message });
-    }
-  });
+  const token = req.cookies.token;
+
+  if (!token) return res.status(401).json({ message: 'Необходима авторизация' });
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Извлекаем запросы пользователя с результатами
+    const requests = await Request.find({ userId: decoded.id })
+      .populate('response') // Подтягиваем связанные результаты
+      .sort({ timestamp: -1 }) // Сортируем по времени (от новых к старым)
+      .limit(10); // Ограничиваем количество записей
+
+    res.status(200).json(requests);
+  } catch (error) {
+    console.error('Ошибка при получении истории запросов:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 router.use(
     cors({

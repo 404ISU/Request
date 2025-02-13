@@ -1,3 +1,5 @@
+// components/RequestForm.js
+
 import React, { useState, useEffect } from 'react';
 import {
   Container,
@@ -99,46 +101,45 @@ const RequestForm = () => {
       queryParams.forEach((param) => {
         url.searchParams.append(param.key, param.value);
       });
-
-      const formData = new FormData();
-      if (file) {
-        formData.append('file', file);
-      }
-
+  
       let finalUrl = apiUrl;
       let finalHeaders = headers;
       let finalBody = body;
-
+  
       envVariables.forEach((variable) => {
         finalUrl = finalUrl.replace(`{{${variable.key}}}`, variable.value);
         finalHeaders = finalHeaders.replace(`{{${variable.key}}}`, variable.value);
         finalBody = finalBody.replace(`{{${variable.key}}}`, variable.value);
       });
-
-      const parsedHeaders = JSON.parse(finalHeaders);
-      const parsedBody = body ? JSON.parse(finalBody) : null;
-
+  
+      const parsedHeaders = finalHeaders ? JSON.parse(finalHeaders) : {};
+      const parsedBody = finalBody ? JSON.parse(finalBody) : null;
+  
       if (auth.type === 'bearer') {
         parsedHeaders['Authorization'] = `Bearer ${auth.token}`;
       } else if (auth.type === 'basic') {
         parsedHeaders['Authorization'] = `Basic ${btoa(auth.token)}`;
       }
-
+  
       const response = await axios.post('http://localhost:5001/api/requests/makeRequest', {
-        url: finalUrl,
+        url: finalUrl.toString(),
         method,
-        headers: parsedHeaders,
-        body: parsedBody,
+        headers: JSON.stringify(parsedHeaders),
+        body: JSON.stringify(parsedBody),
       });
-
+  
       assertions.forEach((assertion) => {
         if (assertion.type === 'status' && response.status !== parseInt(assertion.expected)) {
           throw new Error(`Assertion failed: Expected status ${assertion.expected}, got ${response.status}`);
-        } else if (assertion.type === 'body' && typeof response.data === 'string' && !response.data.includes(assertion.expected)) {
+        } else if (
+          assertion.type === 'body' &&
+          typeof response.data === 'string' &&
+          !response.data.includes(assertion.expected)
+        ) {
           throw new Error(`Assertion failed: Expected body to contain "${assertion.expected}"`);
         }
       });
-
+  
       setResponse({
         data: response.data,
         status: response.status,
@@ -150,14 +151,15 @@ const RequestForm = () => {
         status: error.response?.status,
         data: error.response?.data,
       });
+    } finally {
+      fetchHistory();
     }
-    fetchHistory();
   };
 
   const fetchHistory = async () => {
     try {
       const historyResponse = await axios.get('http://localhost:5001/api/requests/history', {
-        withCredentials: true, // передаем cookies для аутентификации
+        withCredentials: true,
       });
       setRequestHistory(historyResponse.data);
     } catch (error) {
@@ -169,8 +171,34 @@ const RequestForm = () => {
     fetchHistory();
   }, []);
 
+  // Обработка выбора запроса из истории
+  const handleReuseRequest = (request) => {
+    // Преобразуем заголовки и тело в JSON (если они строки)
+    const parsedHeaders =
+      typeof request.headers === 'string' ? JSON.parse(request.headers) : request.headers || {};
+    const parsedBody =
+      typeof request.body === 'string' ? JSON.parse(request.body) : request.body || null;
+  
+    // Заполняем форму данными из выбранного запроса
+    setApiUrl(request.url);
+    setMethod(request.method);
+    setHeaders(JSON.stringify(parsedHeaders, null, 2));
+    setBody(JSON.stringify(parsedBody, null, 2));
+    setQueryParams(request.queryParams || []);
+    setAuth(request.auth || { type: 'none', token: '' });
+    setFile(null); // Файл не сохраняется в базе, поэтому очищаем его
+    setAssertions(request.assertions || []);
+  
+    // Устанавливаем результаты запроса
+    setResponse({
+      data: request.response?.body,
+      status: request.response?.status,
+      headers: request.response?.headers,
+    });
+  };
+
   return (
-<ThemeProvider theme={theme}>
+    <ThemeProvider theme={theme}>
       <Container maxWidth="md" sx={{ mt: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4" gutterBottom>
@@ -181,34 +209,34 @@ const RequestForm = () => {
           </IconButton>
         </Box>
         <Tabs
-  value={activeTab}
-  onChange={(e, newValue) => setActiveTab(newValue)}
-  sx={{
-    mb: 3,
-    '& .MuiTabs-indicator': {
-      backgroundColor: theme.palette.mode === 'dark' ? '#1976d2' : '#1976d2', // Цвет индикатора
-    },
-    '& .MuiTab-root': {
-      color: theme.palette.mode === 'dark' ? '#fff' : '#1976d2', // Цвет текста табов
-      backgroundColor: theme.palette.mode === 'dark' ? '#121212' : '#fff', // Фон табов
-    },
-    '& .Mui-selected': {
-      color: theme.palette.mode === 'dark' ? '#fff' : '#1976d2', // Цвет текста активного таба
-    },
-  }}
->
-  <Tab label="Запрос" />
-  <Tab label="Ответ" />
-  <Tab label="История" />
-  <Tab label="Сохранить и загрузить" />
-</Tabs>
+          value={activeTab}
+          onChange={(e, newValue) => setActiveTab(newValue)}
+          sx={{
+            mb: 3,
+            '& .MuiTabs-indicator': {
+              backgroundColor: theme.palette.mode === 'dark' ? '#1976d2' : '#1976d2',
+            },
+            '& .MuiTab-root': {
+              color: theme.palette.mode === 'dark' ? '#fff' : '#1976d2',
+              backgroundColor: theme.palette.mode === 'dark' ? '#121212' : '#fff',
+            },
+            '& .Mui-selected': {
+              color: theme.palette.mode === 'dark' ? '#fff' : '#1976d2',
+            },
+          }}
+        >
+          <Tab label="Запрос" />
+          <Tab label="Ответ" />
+          <Tab label="История" />
+          <Tab label="Сохранить и загрузить" />
+        </Tabs>
+
         {activeTab === 0 && (
           <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
             <ApiInput value={apiUrl} onChange={handleApiUrlChange} />
             <MethodSelector value={method} onChange={handleMethodChange} />
             <HeadersInput value={headers} onChange={handleHeadersChange} />
             <BodyInput value={body} onChange={handleBodyChange} />
-
             <Accordion>
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
                 <Typography>Дополнительные настройки</Typography>
@@ -221,7 +249,6 @@ const RequestForm = () => {
                 <AssertionsInput onChange={handleAssertionChange} />
               </AccordionDetails>
             </Accordion>
-
             <Button variant="contained" color="primary" fullWidth sx={{ mt: 2 }} onClick={handleSubmit}>
               Отправить запрос
             </Button>
@@ -230,7 +257,12 @@ const RequestForm = () => {
 
         {activeTab === 1 && response && <ResponseDisplay response={response} />}
 
-        {activeTab === 2 && <RequestHistory requests={requestHistory} />}
+        {activeTab === 2 && (
+          <RequestHistory
+            requests={requestHistory}
+            onReuseRequest={handleReuseRequest} // Передаем функцию для загрузки запроса
+          />
+        )}
 
         {activeTab === 3 && <SaveLoadRequests onSave={handleSaveRequest} onLoad={handleLoadRequest} />}
       </Container>
