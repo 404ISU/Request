@@ -61,7 +61,7 @@ const RequestForm = () => {
 
   const handleApiUrlChange = (e) => setApiUrl(e.target.value);
   const handleMethodChange = (e) => setMethod(e.target.value);
-  const handleHeadersChange = (e) => setHeaders(e.target.value);
+  const handleHeadersChange = (newValue) => {setHeaders(newValue)};
   const handleBodyChange = (e) => setBody(e.target.value);
   const handleAuthChange = (auth) => setAuth(auth);
   const handleQueryParamsChange = (params) => setQueryParams(params);

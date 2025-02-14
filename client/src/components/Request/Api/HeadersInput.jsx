@@ -1,109 +1,149 @@
+// components/Api/HeadersInput.js
+
 import React, { useState } from 'react';
 import {
-  TextField,
+  Box,
   Typography,
+  TextField,
+  Button,
+  Select,
+  MenuItem,
   Collapse,
   IconButton,
-  Button,
-  Box,
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 const HeadersInput = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [headers, setHeaders] = useState(() => {
-    try {
-      return JSON.parse(value || '{}');
-    } catch (error) {
-      console.error('Invalid JSON:', error);
-      return {};
-    }
-  });
 
-  // Обработчик изменения заголовка
-  const handleHeaderChange = (key, type, newValue) => {
-    const updatedHeaders = { ...headers };
-    if (type === 'key') {
-      // Если изменяется ключ, проверяем, что новый ключ уникален
-      if (updatedHeaders[newValue] !== undefined && newValue !== key) {
-        alert(`Ключ "${newValue}" уже существует.`);
+  // Преобразуем входящие заголовки в массив объектов
+  const initialHeaders = Object.entries(JSON.parse(value || '{}')).map(([key, value]) => ({
+    key,
+    value,
+  }));
+
+  const [headers, setHeaders] = useState(initialHeaders); // Массив заголовков
+  const [selectedHeaderKey, setSelectedHeaderKey] = useState(''); // Выбранный заголовок из списка
+  const [customHeaderKey, setCustomHeaderKey] = useState(''); // Ключ для пользовательского заголовка
+  const [newHeaderValue, setNewHeaderValue] = useState(''); // Значение нового заголовка
+
+  // Список стандартных заголовков
+  const standardHeaders = [
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'Cache-Control',
+    'User-Agent',
+    'Referer',
+    'Host',
+    'Connection',
+    'Content-Length',
+    'Accept-Encoding',
+    'Accept-Language',
+    'X-Requested-With',
+    'If-Modified-Since',
+    'If-None-Match',
+    'Custom', // Опция для пользовательских заголовков
+  ];
+
+  // Добавление нового заголовка
+  const handleAddHeader = () => {
+    let key = selectedHeaderKey;
+
+    // Если выбран "Custom", используем пользовательский ключ
+    if (selectedHeaderKey === 'Custom') {
+      key = customHeaderKey.trim();
+      if (!key) {
+        alert('Укажите имя пользовательского заголовка.');
         return;
       }
-      // Обновляем ключ в объекте
-      if (newValue !== '') {
-        updatedHeaders[newValue] = updatedHeaders[key];
-        delete updatedHeaders[key];
-      }
-    } else if (type === 'value') {
-      // Если изменяется значение, просто обновляем его
-      updatedHeaders[key] = newValue;
     }
-    setHeaders(updatedHeaders);
-    onChange({ target: { value: JSON.stringify(updatedHeaders) } });
-  };
 
-  // Обработчик удаления заголовка
-  const handleRemoveHeader = (key) => {
-    const updatedHeaders = { ...headers };
-    delete updatedHeaders[key];
-    setHeaders(updatedHeaders);
-    onChange({ target: { value: JSON.stringify(updatedHeaders) } });
-  };
+    const value = newHeaderValue.trim();
 
-  // Обработчик добавления нового заголовка
-  const [newKey, setNewKey] = useState('');
-  const [newValue, setNewValue] = useState('');
-  const handleAddHeader = () => {
-    if (headers[newKey]) {
-      alert(`Ключ "${newKey}" уже существует.`);
+    if (!key || !value) {
+      alert('Ключ и значение заголовка обязательны.');
       return;
     }
-    const updatedHeaders = { ...headers, [newKey]: newValue };
+
+    if (headers.some((header) => header.key === key)) {
+      alert(`Заголовок "${key}" уже существует.`);
+      return;
+    }
+
+    const updatedHeaders = [...headers, { key, value }];
     setHeaders(updatedHeaders);
-    onChange({ target: { value: JSON.stringify(updatedHeaders) } });
-    setNewKey('');
-    setNewValue('');
+
+    // Преобразуем массив обратно в объект и обновляем родительское состояние
+    const headersObject = updatedHeaders.reduce((acc, { key, value }) => {
+      acc[key] = value;
+      return acc;
+    }, {});
+    onChange(JSON.stringify(headersObject, null, 2));
+
+    // Очищаем поля для нового заголовка
+    setSelectedHeaderKey('');
+    setCustomHeaderKey('');
+    setNewHeaderValue('');
+  };
+
+  // Удаление заголовка
+  const handleRemoveHeader = (index) => {
+    const updatedHeaders = headers.filter((_, i) => i !== index);
+    setHeaders(updatedHeaders);
+
+    // Преобразуем массив обратно в объект и обновляем родительское состояние
+    const headersObject = updatedHeaders.reduce((acc, { key, value }) => {
+      acc[key] = value;
+      return acc;
+    }, {});
+    onChange(JSON.stringify(headersObject, null, 2));
   };
 
   return (
-    <div>
-      <Typography
-        variant="h6"
-        onClick={() => setIsOpen(!isOpen)}
-        sx={{ cursor: 'pointer' }}
-      >
-        Headers (JSON) {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+    <Box>
+      <Typography variant="h6" onClick={() => setIsOpen(!isOpen)} sx={{ cursor: 'pointer' }}>
+        Заголовки (Headers) {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
       </Typography>
       <Collapse in={isOpen}>
         <Box sx={{ mt: 2 }}>
-          {/* Отображение существующих заголовков */}
-          {Object.entries(headers).map(([key, value]) => (
+          {/* Список существующих заголовков */}
+          {headers.map((header, index) => (
             <Box
-              key={key}
+              key={index}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
                 mb: 1,
               }}
             >
-              {/* Редактируемое поле для ключа */}
               <TextField
-                value={key}
-                onChange={(e) => handleHeaderChange(key, 'key', e.target.value)}
+                value={header.key}
+                onChange={(e) =>
+                  setHeaders(
+                    headers.map((h, i) =>
+                      i === index ? { ...h, key: e.target.value } : h
+                    )
+                  )
+                }
+                placeholder="Ключ"
                 sx={{ mr: 1, width: '150px' }}
               />
-              {/* Редактируемое поле для значения */}
               <TextField
-                value={value}
+                value={header.value}
                 onChange={(e) =>
-                  handleHeaderChange(key, 'value', e.target.value)
+                  setHeaders(
+                    headers.map((h, i) =>
+                      i === index ? { ...h, value: e.target.value } : h
+                    )
+                  )
                 }
+                placeholder="Значение"
                 sx={{ mr: 1, width: '200px' }}
               />
-              {/* Кнопка удаления */}
               <Button
-                onClick={() => handleRemoveHeader(key)}
+                onClick={() => handleRemoveHeader(index)}
                 color="error"
                 size="small"
               >
@@ -113,32 +153,49 @@ const HeadersInput = ({ value, onChange }) => {
           ))}
 
           {/* Форма добавления нового заголовка */}
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              mb: 2,
-            }}
-          >
-            <TextField
-              value={newKey}
-              onChange={(e) => setNewKey(e.target.value)}
-              placeholder="Ключ"
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Select
+              value={selectedHeaderKey}
+              onChange={(e) => setSelectedHeaderKey(e.target.value)}
               sx={{ mr: 1, width: '150px' }}
-            />
+            >
+              <MenuItem value="">Выберите заголовок</MenuItem>
+              {standardHeaders.map((header) => (
+                <MenuItem key={header} value={header}>
+                  {header}
+                </MenuItem>
+              ))}
+            </Select>
+
+            {/* Пользовательский ключ для "Custom" */}
+            {selectedHeaderKey === 'Custom' && (
+              <TextField
+                value={customHeaderKey}
+                onChange={(e) => setCustomHeaderKey(e.target.value)}
+                placeholder="Введите имя заголовка"
+                sx={{ mr: 1, width: '150px' }}
+              />
+            )}
+
+            {/* Значение заголовка */}
             <TextField
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
+              value={newHeaderValue}
+              onChange={(e) => setNewHeaderValue(e.target.value)}
               placeholder="Значение"
               sx={{ mr: 1, width: '200px' }}
             />
-            <Button onClick={handleAddHeader} variant="contained" size="small">
+
+            <Button
+              onClick={handleAddHeader}
+              variant="contained"
+              size="small"
+            >
               Добавить
             </Button>
           </Box>
         </Box>
       </Collapse>
-    </div>
+    </Box>
   );
 };
 

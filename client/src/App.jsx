@@ -11,6 +11,7 @@ import toast, { Toaster } from 'react-hot-toast';
 import { UserContextProvider } from './context/userContext';
 import ManageWorker from './components/Worker/ManageWorker';
 import UserProfile from './components/User/UserProfile';
+import AdminPanel from './components/Admin/AdminPanel';
 
 axios.defaults.baseURL='http://localhost:5001';
 axios.defaults.withCredentials=true
@@ -28,6 +29,7 @@ function App (){
         <Route path="/dashboard" element={<Dashboard/>}/>
         <Route path="/manage-workers" element={<ManageWorker/>}/>
         <Route path="/user-profile" element={<UserProfile/>}/>
+        <Route path="/admin-panel" element={<AdminPanel/>}/>
       </Routes>
     </UserContextProvider>
 

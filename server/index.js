@@ -5,7 +5,7 @@ const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const bcrypt = require('bcrypt');
 const requestRoutes = require('./routes/requests');
-
+const adminRoutes = require('./routes/adminRoutes');
 const app = express();
 
 const corsOptions = {
@@ -15,6 +15,11 @@ const corsOptions = {
   optionsSuccessStatus: 204,
   allowedHeaders: 'Content-Type,Authorization'
 };
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  next();
+});
 
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -25,6 +30,8 @@ app.use(express.urlencoded({ extended: false }));
 app.use('/api/requests', requestRoutes);
 app.use('/', require('./routes/authRoutes'));
 app.use('/api/workers', require('./routes/workerRoutes'))
+app.use('/api/admin', adminRoutes);
+
 
 mongoose.connect(process.env.MONGO_URI)
   .then(() => console.log('MongoDB подключен'))

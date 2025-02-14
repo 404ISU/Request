@@ -35,6 +35,7 @@ const registerUser = async(req,res)=>{
   }
 }
 
+
 // авторизация
 const loginUser = async(req,res)=>{
     try {
@@ -51,7 +52,7 @@ const loginUser = async(req,res)=>{
       // проверка пароля
       const match=await comparePassword(password, user.password)
       if(match){
-        jwt.sign({username: user.username, id:user._id, name: user.name}, process.env.JWT_SECRET, {}, (err, token)=>{
+        jwt.sign({username: user.username, id:user._id, name: user.name, role: user.role}, process.env.JWT_SECRET, {}, (err, token)=>{
           if(err) throw err;
           res.cookie('token', token).json(user)
         })
@@ -97,7 +98,7 @@ const updateProfile = async (req,res)=>{
   if(!token) return res.status(401).json({error: 'необходима авторизация'});
 
   try {
-    const {username, email, password, firstName, lastName, name} = req.body;
+    const {username, email, password, firstName, lastName, name,organizationName, organizationAddress, organizationPhone} = req.body;
 
     jwt.verify(token, process.env.JWT_SECRET, async (err, decoded)=>{
       if(err) return res.status(401).json({error: 'неверный токен'});
@@ -135,6 +136,12 @@ const updateProfile = async (req,res)=>{
       user.name = name || user.name;
       user.firstName = firstName || user.firstName;
       user.lastName = lastName || user.lastName;
+
+      if(user.role === 'organization'){
+        user.organizationName = organizationName || user.organizationName;
+        user.organizationAddress = organizationAddress || user.organizationAddress;
+        user.organizationPhone = organizationPhone || user.organizationPhone;
+      }
 
       await user.save();
       res.json({message: 'профиль успешно изменен', user})

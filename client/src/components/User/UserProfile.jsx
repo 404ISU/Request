@@ -12,20 +12,28 @@ export default function UserProfile(){
     name: '',
     firstName: '',
     lastName: '',
+    organizationName: '',
+    organizationAddress: '',
+    organizationPhone: '',
   });
 
 
   // загрузка профиля пользователя
   const fetchProfile = async ()=>{
     try {
-      const response = await axios.get('/profile');
+      const response = await axios.get('/profile' , {withCredentials: true});
       setUser(response.data);
+
+      // Инициализация состояния обновления данных из профиля
       setUpdatedUser({
         username: response.data.username,
         email: response.data.email,
         name: response.data.name || '',
         firstName: response.data.firstName || '',
         lastName: response.data.lastName || '',
+        organizationName: response.data.organizationName || '',
+        organizationAddress: response.data.organizationAddress || '',
+        organizationPhone: response.data.organizationPhone || '',
       })
     } catch (error) {
       toast.error('ошибка при загрузке профиля')
@@ -39,7 +47,7 @@ export default function UserProfile(){
   // обновление профелия
   const handleUpdateProfile = async ()=>{
     try {
-    await axios.put('/update-profile', updatedUser);
+    await axios.put('/update-profile', updatedUser, {withCredentialsL: true});
     toast.success('Профиль успешно обновлен');
     fetchProfile(); // обновление данных после изменений
     } catch (error) {
@@ -61,6 +69,15 @@ export default function UserProfile(){
       <p>Фамилия: {user.firstName }</p>
       <p>Отчество: {user.lastName}</p>
 
+      {/* данные организации */}
+      {user.role === 'organization' && (
+        <>
+        <p>Название организации: {user.organizationName}</p>
+        <p>Адрес организации: {user.organizationAddress}</p>
+        <p>Телефон организации: {user.organizationPhone}</p>
+        </>
+      )}
+
       <h3>Редактирование профиля:</h3>
       <input type="text" placeholder='Логин' value={updatedUser.username} onChange={(e)=>setUpdatedUser({...updatedUser, username: e.target.value})}/>
       <input type="email" placeholder='Email' value={updatedUser.email} onChange={(e)=>setUpdatedUser({...updatedUser, email: e.target.value})}/>
@@ -68,6 +85,15 @@ export default function UserProfile(){
       <input type="text" placeholder='Имя' value={updatedUser.name} onChange={(e)=>setUpdatedUser({...updatedUser, name: e.target.value})}/>
       <input type="text" placeholder='Фамилия' value={updatedUser.firstName} onChange={(e)=>setUpdatedUser({...updatedUser, firstName: e.target.value})}/>
       <input type="text" placeholder='Отчество' value={updatedUser.lastName} onChange={(e)=>setUpdatedUser({...updatedUser, lastName: e.target.value})}/>
+
+      {/* для редактирования организации */}
+      {user.role === 'organization' && (
+        <>
+        <input type="text" placeholder='Название организации' value={updatedUser.organizationName} onChange={(e)=>setUpdatedUser({...updatedUser, organizationName: e.target.value})} />
+        <input type="text" placeholder="Адрес организации" value={updatedUser.organizationAddress} onChange={(e)=>setUpdatedUser({...updatedUser, organizationAddress: e.target.value})}/>
+        <input type="text" placeholder='Телефон организации' value={updatedUser.organizationPhone} onChange={(e)=>setUpdatedUser({...updatedUser, organizationPhone: e.target.value})}/>
+        </>
+      )}
       <button onClick={handleUpdateProfile}>Сохранить изменение</button>
     </div> 
   )
