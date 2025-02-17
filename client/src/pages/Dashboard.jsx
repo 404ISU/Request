@@ -1,16 +1,13 @@
-import React, {useContext} from 'react';
-import { UserContext } from '../context/userContext';
+import React from 'react';
+import AdminPanel from '../components/Admin/AdminPanel'
 
 export default function Dashboard()
 {
-  const {user}=useContext(UserContext)
   return (
     <div>
-      <h1>Панель управления</h1>
       <>
-            {!!user && (<h1>Здравствуйте {user.name}</h1>)}
+            <AdminPanel/>
       </>
-
     </div>
   )
 }

@@ -16,8 +16,22 @@ import {
   ListItem,
   ListItemText,
   IconButton,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { Search, Edit, Delete } from '@mui/icons-material';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
 
 const AdminPanel = () => {
   const [organizations, setOrganizations] = useState([]);
@@ -25,6 +39,7 @@ const AdminPanel = () => {
   const [stats, setStats] = useState(null);
   const [searchTerm, setSearchTerm] = useState(''); // Состояние для поиска
   const [editingUser, setEditingUser] = useState(null); // Состояние для редактируемого пользователя
+  const [filterByRequests, setFilterByRequests] = useState('all'); // Фильтр по запросам
 
   // Загрузка пользователей
   const fetchUsers = async () => {
@@ -63,6 +78,14 @@ const AdminPanel = () => {
     worker.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Фильтрация по количеству запросов
+  const filteredUsersByRequests = [...filteredOrganizations, ...filteredWorkers].filter((user) => {
+    if (filterByRequests === 'all') return true;
+    if (filterByRequests === 'none' && user.requestsCount === 0) return true;
+    if (filterByRequests === 'some' && user.requestsCount > 0) return true;
+    return false;
+  });
+
   // Удаление пользователя
   const handleDeleteUser = async (userId) => {
     try {
@@ -74,40 +97,6 @@ const AdminPanel = () => {
     }
   };
 
-  // Обновление данных пользователя
-  const handleUpdateUser = async () => {
-    try {
-      const { _id, username, email, firstName, lastName, newPassword, organizationName, organizationAddress, organizationPhone } = editingUser;
-
-      // Формируем объект с данными для отправки
-      const updatedData = {
-        username,
-        email,
-        firstName,
-        lastName,
-      };
-
-      // Если это организация, добавляем дополнительные поля
-      if (editingUser.role === 'organization') {
-        updatedData.organizationName = organizationName;
-        updatedData.organizationAddress = organizationAddress;
-        updatedData.organizationPhone = organizationPhone;
-      }
-
-      // Добавляем новый пароль, если он указан
-      if (newPassword) {
-        updatedData.newPassword = newPassword;
-      }
-
-      await axios.put(`/api/admin/update-user/${_id}`, updatedData, { withCredentials: true });
-      toast.success('Данные пользователя успешно обновлены');
-      setEditingUser(null); // Закрываем форму редактирования
-      fetchUsers(); // Обновляем список пользователей
-    } catch (error) {
-      toast.error('Ошибка при обновлении данных пользователя');
-    }
-  };
-
   return (
     <Box sx={{ p: 3 }}>
       <Typography variant="h4" gutterBottom>
@@ -115,26 +104,22 @@ const AdminPanel = () => {
       </Typography>
 
       {/* Статистика */}
-      <Card sx={{ mb: 3 }}>
+      <Card sx={{ mb: 4 }}>
         <CardContent>
           <Typography variant="h6" gutterBottom>
             Статистика сайта:
           </Typography>
           {stats ? (
-            <Grid container spacing={2}>
-              <Grid item xs={6}>
-                <Typography>Всего пользователей: {stats.totalUsers}</Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography>Организаций: {stats.totalOrganizations}</Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography>Работников: {stats.totalWorkers}</Typography>
-              </Grid>
-              <Grid item xs={6}>
-                <Typography>Запросов: {stats.totalRequests}</Typography>
-              </Grid>
-            </Grid>
+            <>
+              <BarChart width={500} height={300} data={Object.entries(stats).map(([key, value]) => ({ name: key, count: value }))}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="count" fill="#8884d8" />
+              </BarChart>
+            </>
           ) : (
             <Typography>Загрузка...</Typography>
           )}
@@ -143,168 +128,80 @@ const AdminPanel = () => {
 
       {/* Поле поиска */}
       <TextField
-        label="Поиск пользователей"
+        label="Поиск"
+        placeholder="Введите имя или email"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
         fullWidth
         sx={{ mb: 3 }}
         InputProps={{
-          startAdornment: <Search sx={{ mr: 1 }} />,
+          startAdornment: <Search />,
         }}
       />
 
-      {/* Список организаций и их работников */}
+      {/* Фильтр по запросам */}
+      <Box sx={{ mb: 3 }}>
+        <Select
+          value={filterByRequests}
+          onChange={(e) => setFilterByRequests(e.target.value)}
+          fullWidth
+        >
+          <MenuItem value="all">Все пользователи</MenuItem>
+          <MenuItem value="none">Без запросов</MenuItem>
+          <MenuItem value="some">С запросами</MenuItem>
+        </Select>
+      </Box>
+
+      {/* Список пользователей */}
       <Typography variant="h6" gutterBottom>
         Список пользователей:
       </Typography>
-      {filteredOrganizations.map((org) => (
-        <Paper key={org._id} elevation={3} sx={{ p: 2, mb: 2 }}>
-          {/* Организация */}
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box>
-              <Typography variant="h6">{org.username}</Typography>
-              <Typography variant="body2">{org.email}</Typography>
-              <Typography variant="body2">Организация:{org.organizationName}</Typography>
-            </Box>
-            <Box>
-              <IconButton onClick={() => setEditingUser(org)}>
-                <Edit />
-              </IconButton>
-              <IconButton color="error" onClick={() => handleDeleteUser(org._id)}>
-                <Delete />
-              </IconButton>
-            </Box>
-          </Box>
-
-          {/* Работники организации */}
-          <List dense sx={{ mt: 2 }}>
-            {filteredWorkers
-              .filter((worker) => worker.organizationId?.toString() === org._id.toString())
-              .map((worker) => (
-                <ListItem key={worker._id}>
-                  <ListItemText
-                    primary={worker.username}
-                    secondary={
-                      <>
-                        {worker.email}
-                        <br />
-                        <Typography variant="caption" color="text.secondary">
-                          Организация: {org.username}
-                        </Typography>
-                      </>
-                    }
-                  />
-                  <Box>
-                    <IconButton onClick={() => setEditingUser(worker)}>
-                      <Edit />
-                    </IconButton>
-                    <IconButton color="error" onClick={() => handleDeleteUser(worker._id)}>
-                      <Delete />
-                    </IconButton>
-                  </Box>
-                </ListItem>
-              ))}
-          </List>
-        </Paper>
-      ))}
+      <List>
+        {filteredUsersByRequests.map((user) => (
+          <ListItem key={user._id}>
+            <ListItemText
+              primary={`${user.username} (${user.email})`}
+              secondary={`Роль: ${user.role}, Запросы: ${user.requestsCount || 0}`}
+            />
+            <IconButton onClick={() => setEditingUser(user)}>
+              <Edit />
+            </IconButton>
+            <IconButton onClick={() => handleDeleteUser(user._id)}>
+              <Delete />
+            </IconButton>
+          </ListItem>
+        ))}
+      </List>
 
       {/* Форма редактирования пользователя */}
       {editingUser && (
-        <Box sx={{ mt: 3 }}>
-          <Typography variant="h6">Редактирование пользователя: {editingUser.username}</Typography>
-          <TextField
-            label="Логин"
-            value={editingUser.username}
-            onChange={(e) =>
-              setEditingUser({ ...editingUser, username: e.target.value })
-            }
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            label="Email"
-            value={editingUser.email}
-            onChange={(e) =>
-              setEditingUser({ ...editingUser, email: e.target.value })
-            }
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            label="Имя"
-            value={editingUser.name || ''}
-            onChange={(e) =>
-              setEditingUser({ ...editingUser, name: e.target.value })
-            }
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            label="Фамилия"
-            value={editingUser.firstName || ''}
-            onChange={(e) =>
-              setEditingUser({ ...editingUser, firstName: e.target.value })
-            }
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          <TextField
-            label="Отчество"
-            value={editingUser.lastName || ''}
-            onChange={(e) =>
-              setEditingUser({ ...editingUser, lastName: e.target.value })
-            }
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          {editingUser.role === 'organization' && (
-            <>
-              <TextField
-                label="Название организации"
-                value={editingUser.organizationName || ''}
-                onChange={(e) =>
-                  setEditingUser({ ...editingUser, organizationName: e.target.value })
-                }
-                fullWidth
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Адрес организации"
-                value={editingUser.organizationAddress || ''}
-                onChange={(e) =>
-                  setEditingUser({ ...editingUser, organizationAddress: e.target.value })
-                }
-                fullWidth
-                sx={{ mb: 2 }}
-              />
-              <TextField
-                label="Телефон организации"
-                value={editingUser.organizationPhone || ''}
-                onChange={(e) =>
-                  setEditingUser({ ...editingUser, organizationPhone: e.target.value })
-                }
-                fullWidth
-                sx={{ mb: 2 }}
-              />
-            </>
-          )}
-          <TextField
-            label="Новый пароль (оставьте пустым, если не меняете)"
-            type="password"
-            value={editingUser.newPassword || ''}
-            onChange={(e) =>
-              setEditingUser({ ...editingUser, newPassword: e.target.value })
-            }
-            fullWidth
-            sx={{ mb: 2 }}
-          />
-          <Button variant="contained" color="primary" onClick={handleUpdateUser}>
-            Сохранить изменения
-          </Button>
-          <Button onClick={() => setEditingUser(null)} sx={{ ml: 2 }}>
-            Отмена
-          </Button>
-        </Box>
+        <Card sx={{ mt: 3 }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Редактирование пользователя: {editingUser.username}
+            </Typography>
+            <TextField
+              label="Логин"
+              value={editingUser.username}
+              onChange={(e) => setEditingUser({ ...editingUser, username: e.target.value })}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <TextField
+              label="Email"
+              value={editingUser.email}
+              onChange={(e) => setEditingUser({ ...editingUser, email: e.target.value })}
+              fullWidth
+              sx={{ mb: 2 }}
+            />
+            <Button variant="contained" color="primary" onClick={() => {}}>
+              Сохранить изменения
+            </Button>
+            <Button variant="outlined" onClick={() => setEditingUser(null)} sx={{ ml: 2 }}>
+              Отмена
+            </Button>
+          </CardContent>
+        </Card>
       )}
     </Box>
   );
