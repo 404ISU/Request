@@ -1,18 +1,21 @@
 // components/Login.js
 
-import React, { useState } from 'react';
+import React, { useState, useContext } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { TextField, Button, Box, Typography } from '@mui/material';
-import { useNavigate } from 'react-router-dom'; // Импортируем хук для навигации
-
-const Login = () => {
+import { TextField, Button, Box, Typography,  IconButton,
+  InputAdornment, } from '@mui/material';
+import { useNavigate } from 'react-router-dom';
+import { UserContext } from '../context/userContext';
+import { Visibility, VisibilityOff } from '@mui/icons-material'; 
+export default function Login() {
   const [formData, setFormData] = useState({
-    username: '', // Инициализируем пустой строкой
-    password: '', // Инициализируем пустой строкой
+    username: '',
+    password: '',
   });
-
-  const navigate = useNavigate(); // Хук для навигации
+  const { login } = useContext(UserContext); // Используем контекст
+  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -25,14 +28,24 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Отправляем запрос на сервер
       const response = await axios.post('/login', formData, { withCredentials: true });
+      
+      // Исправлено: проверка структуры ответа
+      if (!response.data?.user) {
+        throw new Error('Некорректные данные пользователя');
+      }
+      
       toast.success('Вход выполнен успешно');
-
-      // Перенаправляем пользователя на страницу дашборда
+      console.log('Данные пользователя после входа:', response.data.user);
+      
+      if(response.data?.user) {
+        login(response.data.user); // Данные теперь в response.data.user
+        navigate('/user-profile');
+      } // Теперь передаётся корректный объект
       navigate('/user-profile');
     } catch (error) {
-      toast.error('Неверный логин или пароль');
+      console.error('Ошибка входа:', error);
+      toast.error(error.response?.data?.message || 'Неверный логин или пароль');
     }
   };
 
@@ -45,21 +58,30 @@ const Login = () => {
         <TextField
           label="Логин"
           name="username"
-          value={formData.username} // Управляемое значение
+          value={formData.username}
           onChange={handleChange}
           fullWidth
           margin="normal"
           required
         />
-        <TextField
+<TextField
           label="Пароль"
           name="password"
-          type="password"
+          type={showPassword ? 'text' : 'password'} // Переключение типа поля
           value={formData.password} // Управляемое значение
           onChange={handleChange}
           fullWidth
           margin="normal"
           required
+          InputProps={{
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                  {showPassword ? <Visibility /> : <VisibilityOff />}
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
         />
         <Button type="submit" variant="contained" color="primary" fullWidth sx={{ mt: 2 }}>
           Войти
@@ -67,6 +89,4 @@ const Login = () => {
       </form>
     </Box>
   );
-};
-
-export default Login;
+}

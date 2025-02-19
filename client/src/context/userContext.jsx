@@ -1,55 +1,57 @@
+// context/userContext.js
+
 import axios from 'axios';
-import {createContext, useState, useEffect} from 'react';
+import { createContext, useState, useEffect } from 'react';
 
-// созадние контекста
-export const UserContext =createContext();
+export const UserContext = createContext();
 
-// проваайдер контекста
-export function UserContextProvider({children}){
-  const [user, setUser]=useState(null);
-  const [loading, setLoading]= useState(true) // состояние загрузки
+export function UserContextProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-
-  // метод для входа
-   const login = (userData)=>{
-    setUser(userData);
+  // Метод для входа
+  const login = (userData) => {
+    console.log('Вызов метода login:', userData); // Отладка: проверяем, что данные приходят
+    setUser(userData); // Обновляем данные пользователя
     setLoading(false);
-   };
+  };
 
-
-  // метод для выхода 
-  const logout = ()=>{
+  // Метод для выхода
+  const logout = () => {
     document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-    setUser(null);
+    setUser(null); // Очищаем данные пользователя
     setLoading(false);
-  }
+  };
 
-// проверка авторизации при загрузке сайта
-  useEffect(()=>{
-    const checkAuth = async()=>{
+  // Проверка авторизации при загрузке сайта
+  useEffect(() => {
+    const checkAuth = async () => {
       try {
-        const token = document.cookie.split('; ').find(row=> row.startsWith('token='))?.split('=')[1];
-
-        if(token){
-          const response =await axios.get('profile', {
-            withCredentials: true,
-          });
-          login(response.data);
+        const token = document.cookie.split('; ').find((row) => row.startsWith('token='))?.split('=')[1];
+        if (token) {
+          const response = await axios.get('/profile', { withCredentials: true });
+          
+          // Исправлено: проверка структуры ответа
+          if (response.data && response.data?.user) {
+            login(response.data.user);
+          } else {
+            console.error('Некорректный формат ответа:', response.data);
+            logout();
+          }
         }
       } catch (error) {
-        console.error("Ошибка при авторизации ", error);
+        console.error('Ошибка при авторизации:', error);
         logout();
-        // выходим из аккаунта при ошибке
-      }finally{
+      } finally {
         setLoading(false);
       }
-    }
+    };
     checkAuth();
-  }, [])
+  }, []);
 
-  return(
-    <UserContext.Provider value={{user,loading,login,logout, setUser}}>
+  return (
+    <UserContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </UserContext.Provider>
-  )
+  );
 }

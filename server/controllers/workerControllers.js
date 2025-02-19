@@ -75,7 +75,7 @@ const getWorker = async(req,res)=>{
 
 
 // удаление работника
-// controllers/workerControllers.js
+
 
 const deleteWorker = async (req, res) => {
   const token = req.cookies.token;

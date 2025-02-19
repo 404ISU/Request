@@ -8,10 +8,8 @@ const bcrypt = require('bcrypt');
 const getUsers = async (req, res) => {
   const token = req.cookies.token;
   if (!token) return res.status(401).json({ error: 'Необходима авторизация' });
-
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
     // Проверяем роль пользователя
     if (decoded.role !== 'admin') {
       return res.status(403).json({ error: 'У вас нет прав администратора' });
@@ -20,9 +18,25 @@ const getUsers = async (req, res) => {
     // Получаем список всех пользователей
     const users = await User.find().select('-password');
 
+    // Добавляем количество запросов для каждого пользователя
+    const usersWithRequests = await Promise.all(
+      users.map(async (user) => {
+        const requestsCount = await Request.countDocuments({ userId: user._id });
+        const successfulRequests = await Request.countDocuments({ userId: user._id, status: 'success' });
+        const failedRequests = await Request.countDocuments({ userId: user._id, status: 'failed' });
+
+        return {
+          ...user.toObject(),
+          requestsCount,
+          successfulRequests,
+          failedRequests,
+        };
+      })
+    );
+
     // Группируем пользователей по ролям
-    const organizations = users.filter((user) => user.role === 'organization');
-    const workers = users.filter((user) => user.role === 'worker');
+    const organizations = usersWithRequests.filter((user) => user.role === 'organization');
+    const workers = usersWithRequests.filter((user) => user.role === 'worker');
 
     // Возвращаем данные в виде одного объекта
     res.json({ organizations, workers });
@@ -98,35 +112,33 @@ const deleteUser = async (req,res)=>{
 
 
 // получение статистики сайта
-const getStats = async (req,res)=>{
+const getStats = async (req, res) => {
   const token = req.cookies.token;
-
-  if(!token) return res.status(401).json({error: 'Необходима авторизация'});
-
+  if (!token) return res.status(401).json({ error: 'Необходима авторизация' });
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // проверка роли
-    if(decoded.role !== 'admin'){
-      return res.status(403).json({error: 'у вас недостаточно прав'})
+
+    // Проверка роли
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ error: 'У вас недостаточно прав' });
     }
 
     const totalUsers = await User.countDocuments();
-    const totalOrganizations = await User.countDocuments({role: 'organization'})
-    const totalWorkers = await User.countDocuments({role: 'worker'});
+    const totalOrganizations = await User.countDocuments({ role: 'organization' });
+    const totalWorkers = await User.countDocuments({ role: 'worker' });
     const totalRequests = await Request.countDocuments();
+
 
     res.json({
       totalUsers,
       totalOrganizations,
       totalWorkers,
       totalRequests,
-    })
+    });
   } catch (error) {
     console.error(error);
-    res.status(500).json({error: 'Ошибка сервера'});
+    res.status(500).json({ error: 'Ошибка сервера' });
   }
-}
-
+};
 
 module.exports={getUsers, updateUser, deleteUser, getStats};

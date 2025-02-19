@@ -35,15 +35,9 @@ const HeadersInput = ({ value, onChange }) => {
     'Authorization',
     'Cache-Control',
     'User-Agent',
-    'Referer',
     'Host',
     'Connection',
     'Content-Length',
-    'Accept-Encoding',
-    'Accept-Language',
-    'X-Requested-With',
-    'If-Modified-Since',
-    'If-None-Match',
     'Custom', // Опция для пользовательских заголовков
   ];
 

@@ -14,15 +14,19 @@ router.post('/makeRequest', async (req, res) => {
 
   if (!token) return res.status(401).json({ message: 'Необходима авторизация' });
 
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch (jwtError) {
+    return res.status(401).json({ message: 'Неверный токен' });
+  }
+
   try {
     const { url, method, headers, body } = req.body;
 
     if (!url || !method) {
       return res.status(400).json({ message: 'URL и метод обязательны' });
     }
-
-    // Проверяем токен
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Преобразуем headers и body в JSON (если они undefined или уже объекты)
     let parsedHeaders = {};
@@ -111,7 +115,7 @@ router.post('/makeRequest', async (req, res) => {
       method,
       headers: typeof headers === 'string' ? headers : JSON.stringify(headers),
       body: typeof body === 'string' ? body : JSON.stringify(body),
-      userId: decoded.id,
+      userId: decoded.id, // Теперь decoded доступен
       response: newResponse._id, // Связываем запрос с результатом
     });
 

@@ -1,5 +1,5 @@
 import React, {useState} from 'react';
-import {Select, MenuItem, TextField, Button, Box} from '@mui/material';
+import {Select, MenuItem, TextField, Button, Box, Typography} from '@mui/material';
 
 
 const AssertionsInput = ({onChange})=>{
@@ -19,7 +19,9 @@ const AssertionsInput = ({onChange})=>{
   return(
     <Box>
       {assertions.map((assertion, index)=>(
-        <Box key={index} sx={{display: 'flex', gap:2, mb:2}}>
+        <Box>
+          <Typography variant="subtitle2">Оператор запроса {index+1}</Typography>
+          <Box key={index} sx={{display: 'flex', gap:2, mb:2}}>
           <Select value={assertion.type}
           onChange={(e)=> handleAssertionChange(index, 'type', e.target.value)}
           fullWidth
@@ -32,6 +34,8 @@ const AssertionsInput = ({onChange})=>{
             fullWidth
             variant="outlined"/>
         </Box>
+        </Box>
+        
       ))}
       <Button onClick={addAssertion} variant="outlined">
         Добавить оператор

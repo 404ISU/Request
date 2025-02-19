@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TextField, Button, Box } from '@mui/material';
+import { TextField, Button, Box, Typography } from '@mui/material';
 
 const QueryParamsInput = ({ onChange }) => {
   const [params, setParams] = useState([{ key: '', value: '' }]);
@@ -18,7 +18,9 @@ const QueryParamsInput = ({ onChange }) => {
   return (
     <Box >
       {params.map((param, index) => (
-        <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }} >
+        <Box>
+          <Typography>Параметры запроса</Typography>
+          <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }} >
           <TextField
             label="Key"
             value={param.key}
@@ -34,6 +36,8 @@ const QueryParamsInput = ({ onChange }) => {
             variant="outlined"
           />
         </Box>
+        </Box>
+        
       ))}
       <Button onClick={addParam} variant="outlined">
         Добавить Параметр

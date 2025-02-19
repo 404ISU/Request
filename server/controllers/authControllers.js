@@ -52,10 +52,22 @@ const loginUser = async(req,res)=>{
       // проверка пароля
       const match=await comparePassword(password, user.password)
       if(match){
-        jwt.sign({username: user.username, id:user._id, name: user.name, role: user.role}, process.env.JWT_SECRET, {}, (err, token)=>{
-          if(err) throw err;
-          res.cookie('token', token).json(user)
-        })
+        jwt.sign(
+          {id: user._id, username: user.username, role: user.role}, 
+          process.env.JWT_SECRET, 
+          {}, 
+          (err, token) => {
+            if(err) throw err;
+            // Отправляем только необходимые данные + роль
+            const userData = {
+              id: user._id,
+              username: user.username,
+              name: user.name,
+              role: user.role,
+            };
+            res.cookie('token', token).json({ user: userData }); // Добавлена обёртка user
+          }
+        )
       }
       if(!match){
         res.json({
@@ -75,12 +87,8 @@ const getProfile= async (req,res)=>{
 
   try {
     jwt.verify(token, process.env.JWT_SECRET, async(err,decoded)=>{
-      if(err) return res.status(401).json({error: 'Неверный токен'});
-
-      const user = await User.findById(decoded.id).select('-password');
-      if(!user){
-        return res.status(404).json({error: 'Пользователь не найден'});
-      }
+      const user = await User.findById(decoded.id).select('-password -__v');
+      if(!user) return res.status(404).json({error: 'Пользователь не найден'});
       res.json(user);
     })
   } catch (error) {
@@ -91,66 +99,73 @@ const getProfile= async (req,res)=>{
 
 
 // обновление пользователя
-const updateProfile = async (req,res)=>{
+const updateProfile = async (req, res) => {
   const token = req.cookies.token;
 
-
-  if(!token) return res.status(401).json({error: 'необходима авторизация'});
+  if (!token) return res.status(401).json({ error: 'Необходима авторизация' });
 
   try {
-    const {username, email, password, firstName, lastName, name,organizationName, organizationAddress, organizationPhone} = req.body;
+    const { username, email, password, oldPassword, firstName, lastName, name, organizationName, organizationAddress, organizationPhone } = req.body;
 
-    jwt.verify(token, process.env.JWT_SECRET, async (err, decoded)=>{
-      if(err) return res.status(401).json({error: 'неверный токен'});
+    jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
+      if (err) return res.status(401).json({ error: 'Неверный токен' });
+
       const user = await User.findById(decoded.id);
+      if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
 
-      // проверка на уникальность email
-      if(email !== user.email){
-        const existingUser = await User.findOne({email});
-        if(existingUser){
-          return res.status(400).json({error: 'Пользователь с таким email уже существует'});
+      // Проверка на уникальность email
+      if (email && email !== user.email) {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
+          return res.status(400).json({ error: 'Пользователь с таким email уже существует' });
         }
       }
 
-      // проверка на уникальность логина
-      if(username !== user.username){
-        const existingUser = await User.findOne({username});
-        if(existingUser){
-          return res.status(400).json({error: 'пользователь с таким логином уже существует'})
+      // Проверка на уникальность логина
+      if (username && username !== user.username) {
+        const existingUser = await User.findOne({ username });
+        if (existingUser) {
+          return res.status(400).json({ error: 'Пользователь с таким логином уже существует' });
         }
       }
 
+      // Проверка старого пароля, если новый пароль передан
+      if (password) {
+        if (!oldPassword) {
+          return res.status(400).json({ error: 'Необходимо ввести старый пароль' });
+        }
 
-      // обновляем данные пользователем
-      user.username = username || user.username;
-      user.email = email || user.email;
+        const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
+        if (!isOldPasswordValid) {
+          return res.status(400).json({ error: 'Старый пароль неверный' });
+        }
 
-
-      // если новый пароль передан хешируем его
-      if(password){
+        // Хешируем новый пароль
         const hashedPassword = await bcrypt.hash(password, 12);
         user.password = hashedPassword;
       }
 
-      // обновляем имя фамилию и пароль
+      // Обновляем данные пользователя
+      user.username = username || user.username;
+      user.email = email || user.email;
       user.name = name || user.name;
       user.firstName = firstName || user.firstName;
       user.lastName = lastName || user.lastName;
 
-      if(user.role === 'organization'){
+      if (user.role === 'organization') {
         user.organizationName = organizationName || user.organizationName;
         user.organizationAddress = organizationAddress || user.organizationAddress;
         user.organizationPhone = organizationPhone || user.organizationPhone;
       }
 
       await user.save();
-      res.json({message: 'профиль успешно изменен', user})
-    })
+      res.json({ message: 'Профиль успешно изменен', user });
+    });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({error: 'ошибка сервера'})
+    return res.status(500).json({ error: 'Ошибка сервера' });
   }
-}
+};
 
 //выход
 const logout = async (req,res)=>{

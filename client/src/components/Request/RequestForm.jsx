@@ -31,9 +31,8 @@ import RequestHistory from './Response/RequestHistory';
 import ResponseDisplay from './Response/ResponseDisplay';
 import AuthInput from './Api/AuthInput';
 import QueryParamsInput from './Api/QueryParamsInput';
-import FileInput from './Api/FileInput';
 import EnvironmentVariables from './Api/EnvironmentVariables';
-import SaveLoadRequests from './Api/SaveLoadRequests';
+
 import AssertionsInput from './Api/AssertionsInput';
 import axios from 'axios';
 
@@ -46,7 +45,6 @@ const RequestForm = () => {
   const [response, setResponse] = useState(null);
   const [auth, setAuth] = useState({ type: 'none', token: '' });
   const [queryParams, setQueryParams] = useState([]);
-  const [file, setFile] = useState(null);
   const [envVariables, setEnvVariables] = useState([]);
   const [savedRequests, setSavedRequests] = useState([]);
   const [assertions, setAssertions] = useState([]);
@@ -186,7 +184,6 @@ const RequestForm = () => {
     setBody(JSON.stringify(parsedBody, null, 2));
     setQueryParams(request.queryParams || []);
     setAuth(request.auth || { type: 'none', token: '' });
-    setFile(null); // Файл не сохраняется в базе, поэтому очищаем его
     setAssertions(request.assertions || []);
   
     // Устанавливаем результаты запроса
@@ -202,7 +199,7 @@ const RequestForm = () => {
       <Container maxWidth="md" sx={{ mt: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4" gutterBottom>
-            HTTP Request Tool
+            HTTP
           </Typography>
           <IconButton onClick={() => setDarkMode(!darkMode)} color="inherit">
             {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
@@ -228,7 +225,7 @@ const RequestForm = () => {
           <Tab label="Запрос" />
           <Tab label="Ответ" />
           <Tab label="История" />
-          <Tab label="Сохранить и загрузить" />
+
         </Tabs>
 
         {activeTab === 0 && (
@@ -244,7 +241,6 @@ const RequestForm = () => {
               <AccordionDetails>
                 <QueryParamsInput onChange={handleQueryParamsChange} />
                 <AuthInput onChange={handleAuthChange} />
-                <FileInput onChange={handleFileChange} />
                 <EnvironmentVariables onChange={handleEnvVariablesChange} />
                 <AssertionsInput onChange={handleAssertionChange} />
               </AccordionDetails>
@@ -264,7 +260,7 @@ const RequestForm = () => {
           />
         )}
 
-        {activeTab === 3 && <SaveLoadRequests onSave={handleSaveRequest} onLoad={handleLoadRequest} />}
+
       </Container>
     </ThemeProvider>
   );

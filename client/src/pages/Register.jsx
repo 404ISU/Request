@@ -1,57 +1,65 @@
-import React, { useState } from "react";
-import { IMaskInput } from "react-imask"; // Используем react-imask
-import axios from "axios";
-import { toast } from "react-hot-toast";
-import { useNavigate } from "react-router-dom";
+// components/Register.js
+
+import React, { useState } from 'react';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import {
+  Box,
+  Typography,
+  TextField,
+  FormControlLabel,
+  Checkbox,
+  Button,
+  IconButton,
+} from '@mui/material';
+import { Visibility, VisibilityOff } from '@mui/icons-material'; // Иконки для показа/скрытия пароля
+import { IMaskInput } from 'react-imask';
+import { useNavigate } from 'react-router-dom';
 
 export default function Register() {
-  const navigate = useNavigate();
   const [data, setData] = useState({
-    name: "",
-    firstName: "",
-    lastName: "",
-    username: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    organizationName: "",
-    organizationAddress: "",
-    organizationPhone: "",
+    name: '',
+    firstName: '',
+    lastName: '',
+    username: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+    organizationName: '',
+    organizationAddress: '',
+    organizationPhone: '',
     isAgreed: false,
   });
-
-  const [showPassword, setShowPassword] = useState(false); // Для показа/скрытия пароля
+  const [showPassword, setShowPassword] = useState(false); // Состояние для поля "Пароль"
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // Состояние для поля "Подтверждение пароля"
+  const navigate = useNavigate();
 
   const validateForm = () => {
     const { name, firstName, lastName, organizationPhone, isAgreed } = data;
-
     // Валидация имени, фамилии и отчества (только русские буквы)
     const cyrillicRegex = /^[А-Яа-яЁё]+$/;
     if (!cyrillicRegex.test(name)) {
-      toast.error("Имя должно содержать только русские буквы");
+      toast.error('Имя должно содержать только русские буквы');
       return false;
     }
     if (!cyrillicRegex.test(firstName)) {
-      toast.error("Фамилия должна содержать только русские буквы");
+      toast.error('Фамилия должна содержать только русские буквы');
       return false;
     }
     if (!cyrillicRegex.test(lastName)) {
-      toast.error("Отчество должно содержать только русские буквы");
+      toast.error('Отчество должно содержать только русские буквы');
       return false;
     }
-
     // Проверка телефона
     if (!organizationPhone || organizationPhone.length < 16) {
-      toast.error("Введите корректный номер телефона");
+      toast.error('Введите корректный номер телефона');
       return false;
     }
-
     // Проверка согласия с условиями
     if (!isAgreed) {
-      toast.error("Вы должны принять лицензионное соглашение");
+      toast.error('Вы должны принять лицензионное соглашение');
       return false;
     }
-
     return true;
   };
 
@@ -59,279 +67,177 @@ export default function Register() {
     e.preventDefault();
     if (!validateForm()) return;
 
-    const {
-      username,
-      email,
-      password,
-      confirmPassword,
-      name,
-      firstName,
-      lastName,
-      organizationName,
-      organizationAddress,
-      organizationPhone,
-    } = data;
-
     try {
-      const { data: response } = await axios.post("/register", {
-        username,
-        email,
-        password,
-        confirmPassword,
-        name,
-        firstName,
-        lastName,
-        organizationName,
-        organizationAddress,
-        organizationPhone,
-      });
-      if (response.error) {
-        toast.error(response.error);
-      } else {
-        setData({ ...data, isAgreed: false }); // Сброс состояния
-        toast.success("Регистрация прошла успешно!");
-        navigate("/login");
-      }
+      const response = await axios.post('/register', data, { withCredentials: true });
+      toast.success('Регистрация прошла успешно');
+      navigate('/login'); // Перенаправляем на страницу входа
     } catch (error) {
-      console.error(error);
+      toast.error('Ошибка при регистрации');
     }
   };
 
   return (
-    <div style={{ padding: "20px", maxWidth: "500px", margin: "0 auto" }}>
-      <form
-        onSubmit={registerUser}
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px",
-        }}
-      >
+    <Box sx={{ p: 3, maxWidth: 500, mx: 'auto' }}>
+      <Typography variant="h4" gutterBottom>
+        Регистрация
+      </Typography>
+
+      <form onSubmit={registerUser}>
         {/* Имя */}
-        <label>Имя</label>
-        <input
-          type="text"
+        <TextField
+          fullWidth
+          label="Имя"
           placeholder="Введите имя"
           value={data.name}
           onChange={(e) =>
-            setData({ ...data, name: e.target.value.replace(/[^А-Яа-яЁё]/g, "") })
+            setData({ ...data, name: e.target.value.replace(/[^А-Яа-яЁё]/g, '') })
           }
-          style={{
-            padding: "8px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
+          margin="normal"
         />
 
         {/* Фамилия */}
-        <label>Фамилия</label>
-        <input
-          type="text"
+        <TextField
+          fullWidth
+          label="Фамилия"
           placeholder="Введите фамилию"
           value={data.firstName}
           onChange={(e) =>
             setData({
               ...data,
-              firstName: e.target.value.replace(/[^А-Яа-яЁё]/g, ""),
+              firstName: e.target.value.replace(/[^А-Яа-яЁё]/g, ''),
             })
           }
-          style={{
-            padding: "8px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
+          margin="normal"
         />
 
         {/* Отчество */}
-        <label>Отчество</label>
-        <input
-          type="text"
+        <TextField
+          fullWidth
+          label="Отчество"
           placeholder="Введите отчество"
           value={data.lastName}
           onChange={(e) =>
             setData({
               ...data,
-              lastName: e.target.value.replace(/[^А-Яа-яЁё]/g, ""),
+              lastName: e.target.value.replace(/[^А-Яа-яЁё]/g, ''),
             })
           }
-          style={{
-            padding: "8px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
+          margin="normal"
         />
 
         {/* Логин */}
-        <label>Логин</label>
-        <input
-          type="text"
+        <TextField
+          fullWidth
+          label="Логин"
           placeholder="Введите логин"
           value={data.username}
           onChange={(e) => setData({ ...data, username: e.target.value })}
-          style={{
-            padding: "8px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
+          margin="normal"
         />
 
         {/* Email */}
-        <label>Email</label>
-        <input
+        <TextField
+          fullWidth
+          label="Email"
           type="email"
           placeholder="Введите email"
           value={data.email}
           onChange={(e) => setData({ ...data, email: e.target.value })}
-          style={{
-            padding: "8px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
+          margin="normal"
         />
 
         {/* Пароль */}
-        <label>Пароль</label>
-        <div style={{ position: "relative" }}>
-          <input
-            type={showPassword ? "text" : "password"}
-            placeholder="Введите пароль"
-            value={data.password}
-            onChange={(e) => setData({ ...data, password: e.target.value })}
-            style={{
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              width: "100%",
-            }}
-          />
-          <button
-            type="button"
-            style={{
-              position: "absolute",
-              right: "10px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "16px",
-            }}
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? "Скрыть" : "Показать"}
-          </button>
-        </div>
+        <TextField
+          fullWidth
+          label="Пароль"
+          type={showPassword ? 'text' : 'password'}
+          placeholder="Введите пароль"
+          value={data.password}
+          onChange={(e) => setData({ ...data, password: e.target.value })}
+          margin="normal"
+          InputProps={{
+            endAdornment: (
+              <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                {showPassword ? <Visibility /> : <VisibilityOff />}
+              </IconButton>
+            ),
+          }}
+        />
 
         {/* Подтверждение пароля */}
-        <label>Подтверждение пароля</label>
-        <div style={{ position: "relative" }}>
-          <input
-            type={showPassword ? "text" : "password"}
-            placeholder="Введите повторно пароль"
-            value={data.confirmPassword}
-            onChange={(e) =>
-              setData({ ...data, confirmPassword: e.target.value })
-            }
-            style={{
-              padding: "8px",
-              border: "1px solid #ccc",
-              borderRadius: "4px",
-              width: "100%",
-            }}
-          />
-          <button
-            type="button"
-            style={{
-              position: "absolute",
-              right: "10px",
-              top: "50%",
-              transform: "translateY(-50%)",
-              background: "transparent",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "16px",
-            }}
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? "Скрыть" : "Показать"}
-          </button>
-        </div>
+        <TextField
+          fullWidth
+          label="Подтверждение пароля"
+          type={showConfirmPassword ? 'text' : 'password'}
+          placeholder="Введите повторно пароль"
+          value={data.confirmPassword}
+          onChange={(e) => setData({ ...data, confirmPassword: e.target.value })}
+          margin="normal"
+          InputProps={{
+            endAdornment: (
+              <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
+                {showConfirmPassword ? <Visibility /> : <VisibilityOff />}
+              </IconButton>
+            ),
+          }}
+        />
 
         {/* Название организации */}
-        <label>Название организации</label>
-        <input
-          type="text"
+        <TextField
+          fullWidth
+          label="Название организации"
           placeholder="Введите название организации"
           value={data.organizationName}
-          onChange={(e) =>
-            setData({ ...data, organizationName: e.target.value })
-          }
-          style={{
-            padding: "8px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
+          onChange={(e) => setData({ ...data, organizationName: e.target.value })}
+          margin="normal"
         />
 
         {/* Адрес организации */}
-        <label>Адрес организации</label>
-        <input
-          type="text"
+        <TextField
+          fullWidth
+          label="Адрес организации"
           placeholder="Введите адрес организации"
           value={data.organizationAddress}
-          onChange={(e) =>
-            setData({ ...data, organizationAddress: e.target.value })
-          }
-          style={{
-            padding: "8px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
-          }}
+          onChange={(e) => setData({ ...data, organizationAddress: e.target.value })}
+          margin="normal"
         />
 
         {/* Телефон организации */}
-        <label>Телефон организации</label>
-        <IMaskInput
-          mask="+{7} (000) 000-00-00"
+        <TextField
+          fullWidth
+          label="Телефон организации"
+          placeholder="+7 (___) ___-__-__"
           value={data.organizationPhone}
-          onAccept={(value) => setData({ ...data, organizationPhone: value })}
-          style={{
-            padding: "8px",
-            border: "1px solid #ccc",
-            borderRadius: "4px",
+          onChange={(e) => setData({ ...data, organizationPhone: e.target.value })}
+          margin="normal"
+          InputProps={{
+            inputComponent: IMaskInput,
+            inputProps: { mask: '+{7} (000) 000-00-00' },
           }}
         />
 
         {/* Чекбокс для принятия условий */}
-        <label>
-          <input
-            type="checkbox"
-            checked={data.isAgreed}
-            onChange={(e) =>
-              setData({ ...data, isAgreed: e.target.checked })
-            }
-            style={{
-              marginRight: "10px",
-            }}
-          />
-          Я принимаю лицензионное соглашение
-        </label>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={data.isAgreed}
+              onChange={(e) => setData({ ...data, isAgreed: e.target.checked })}
+            />
+          }
+          label="Я принимаю лицензионное соглашение"
+        />
 
         {/* Кнопка регистрации */}
-        <button
+        <Button
           type="submit"
-          style={{
-            padding: "10px",
-            background: "#007BFF",
-            color: "#fff",
-            border: "none",
-            borderRadius: "4px",
-            cursor: "pointer",
-          }}
+          variant="contained"
+          color="primary"
+          fullWidth
+          sx={{ mt: 2 }}
         >
-          Регистрация
-        </button>
+          Зарегистрироваться
+        </Button>
       </form>
-    </div>
+    </Box>
   );
 }
