@@ -55,7 +55,7 @@ export default function UserProfile() {
         organizationAddress: response.data.organizationAddress || '',
         organizationPhone: response.data.organizationPhone || '',
         password: '',
-        confirmPassword: '',
+
       });
     } catch (error) {
       toast.error('Ошибка при загрузке профиля');
@@ -68,10 +68,6 @@ export default function UserProfile() {
 
   // Обновление профиля
   const handleUpdateProfile = async () => {
-    if (updatedUser.password !== updatedUser.confirmPassword) {
-      toast.error('Пароли не совпадают');
-      return;
-    }
     try {
       await axios.put('/update-profile', updatedUser, { withCredentials: true });
       toast.success('Профиль успешно обновлен');

@@ -93,7 +93,7 @@ export default function ManageWorkers() {
   };
 
   const handleEditWorker = (worker) => {
-    setEditingWorker({ ...worker });
+    setEditingWorker({ ...worker, password: '' });
     setIsEditModalOpen(true);
   };  
 
@@ -111,6 +111,8 @@ export default function ManageWorkers() {
       setIsEditModalOpen(false); // Закрываем модальное окно
       toast.success('Данные работника успешно обновлены');
       fetchWorkers();
+
+      
     } catch (error) {
       toast.error('Ошибка при обновлении данных работника');
     }
@@ -160,7 +162,7 @@ export default function ManageWorkers() {
           <Typography variant="h6" gutterBottom>
             Список работников
           </Typography>
-          <Box display="flex" gap={4} mb={2}>
+          <Box display="flex" p={3} gap={5} mb={2}>
             <Typography variant="subtitle2" fontWeight="bold">
               Имя
             </Typography>
@@ -171,7 +173,7 @@ export default function ManageWorkers() {
               Отчество
             </Typography>
             <Typography variant="subtitle2" fontWeight="bold">
-              Email
+              Логин
             </Typography>
           </Box>
           {filteredWorkers.length === 0 ? (
@@ -194,11 +196,11 @@ export default function ManageWorkers() {
                   >
                     <ListItemText
                       primary={
-                        <Box display="flex" gap={4}>
+                        <Box display="flex"  gap={5} p={2} >
                           <Typography variant="body2">{worker.name}</Typography>
                           <Typography variant="body2">{worker.firstName}</Typography>
                           <Typography variant="body2">{worker.lastName || 'Не указано'}</Typography>
-                          <Typography variant="body2">{worker.email}</Typography>
+                          <Typography variant="body2">{worker.username}</Typography>
                         </Box>
                       }
                     />
@@ -370,15 +372,14 @@ export default function ManageWorkers() {
                 />
               </Grid>
               <Grid item xs={12}>
-                <TextField
-                  fullWidth
-                  label="Новый пароль (оставьте пустым, если не меняете)"
-                  type="password"
-                  value={editingWorker.password}
-                  onChange={(e) =>
-                    setEditingWorker({ ...editingWorker, password: e.target.value })
-                  }
-                />
+              <TextField
+                label="Пароль"
+                type="password"
+                value={editingWorker.password}
+                onChange={(e) => setEditingWorker({ ...editingWorker, password: e.target.value })}
+                fullWidth
+                sx={{ mb: 2 }}
+              />
               </Grid>
               <Grid item xs={12}>
                 <TextField

@@ -21,10 +21,12 @@ import {
   Menu as MenuIcon
 } from '@mui/icons-material';
 import { styled, alpha } from '@mui/material/styles';
+import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import { Link, useNavigate } from 'react-router-dom';
 import { UserContext } from '../../context/userContext';
 import axios from 'axios';
 import {CloudUpload} from 'lucide-react';
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
 // Стилизованный AppBar с градиентом и анимацией
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   background: `linear-gradient(45deg, ${theme.palette.primary.main} 30%, #1976d2 90%)`,
@@ -88,13 +90,20 @@ const Navbar = () => {
       {user ? (
         <>
           
-          <NavLink component={Link} to="/request" color="inherit">
-          <CloudUpload/> Запрос
+          <NavLink component={Link} to="/request" color="inherit" >
+          <CloudUpload className="w-24 h-24"/> Запрос
           </NavLink>
 
           {user.role === 'organization' && (
             <NavLink component={Link} to="/manage-workers" color="inherit">
               <People />Работники
+            </NavLink>
+          )}
+
+          {user.role === 'admin' && (
+            <NavLink component={Link} to="/admin-panel" color="inherit">
+              <AdminPanelSettingsIcon/>
+              Администрирование
             </NavLink>
           )}
 
@@ -141,7 +150,7 @@ const Navbar = () => {
       ) : (
         <>
           <NavLink component={Link} to="/register" color="inherit">
-            Регистрация
+          <VpnKeyIcon/> Регистрация
           </NavLink>
           <NavLink component={Link} to="/login" color="inherit">
             <LoginIcon /> Вход

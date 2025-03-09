@@ -14,7 +14,7 @@ const MethodSelector = ({ value, onChange }) => {
         <MenuItem value="options">OPTIONS</MenuItem>
         <MenuItem value="head">HEAD</MenuItem>
         <MenuItem value="connect">CONNECT</MenuItem>
-        <MenuItem value="trace">TRACE</MenuItem>
+        {/* <MenuItem value="trace">TRACE</MenuItem> */}
       </Select>
     </FormControl>
   );

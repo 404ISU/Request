@@ -199,7 +199,7 @@ const RequestForm = () => {
       <Container maxWidth="md" sx={{ mt: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4" gutterBottom>
-            HTTP
+            API
           </Typography>
           <IconButton onClick={() => setDarkMode(!darkMode)} color="inherit">
             {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}

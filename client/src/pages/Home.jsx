@@ -23,7 +23,7 @@ const Home = () => {
       {/* Герой-секция */}
       <Box textAlign="center" mb={8}>
         <Typography variant="h2" gutterBottom sx={{ fontWeight: 'bold', color: theme.palette.primary.main }}>
-          HTTP
+          API
         </Typography>
         <Typography variant="h5" color="text.secondary" paragraph sx={{ maxWidth: '600px', margin: '0 auto' }}>
           Инструмент для тестирования серверных API. Отправляйте HTTP-запросы, сохраняйте историю и проверяйте результаты.

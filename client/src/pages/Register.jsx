@@ -1,5 +1,4 @@
 // components/Register.js
-
 import React, { useState } from 'react';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -34,8 +33,10 @@ export default function Register() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false); // Состояние для поля "Подтверждение пароля"
   const navigate = useNavigate();
 
+  // Валидация формы
   const validateForm = () => {
-    const { name, firstName, lastName, organizationPhone, isAgreed } = data;
+    const { name, firstName, lastName, organizationPhone, isAgreed, password, confirmPassword } = data;
+
     // Валидация имени, фамилии и отчества (только русские буквы)
     const cyrillicRegex = /^[А-Яа-яЁё]+$/;
     if (!cyrillicRegex.test(name)) {
@@ -50,19 +51,38 @@ export default function Register() {
       toast.error('Отчество должно содержать только русские буквы');
       return false;
     }
+
     // Проверка телефона
     if (!organizationPhone || organizationPhone.length < 16) {
       toast.error('Введите корректный номер телефона');
       return false;
     }
+
     // Проверка согласия с условиями
     if (!isAgreed) {
       toast.error('Вы должны принять лицензионное соглашение');
       return false;
     }
+
+    // Валидация пароля
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(password)) {
+      toast.error(
+        'Пароль должен содержать минимум 8 символов, включая заглавные и строчные буквы, цифры и специальные символы'
+      );
+      return false;
+    }
+
+    // Проверка совпадения паролей
+    if (password !== confirmPassword) {
+      toast.error('Пароли не совпадают');
+      return false;
+    }
+
     return true;
   };
 
+  // Регистрация пользователя
   const registerUser = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
@@ -81,7 +101,6 @@ export default function Register() {
       <Typography variant="h4" gutterBottom>
         Регистрация
       </Typography>
-
       <form onSubmit={registerUser}>
         {/* Имя */}
         <TextField
@@ -94,7 +113,6 @@ export default function Register() {
           }
           margin="normal"
         />
-
         {/* Фамилия */}
         <TextField
           fullWidth
@@ -109,7 +127,6 @@ export default function Register() {
           }
           margin="normal"
         />
-
         {/* Отчество */}
         <TextField
           fullWidth
@@ -124,7 +141,6 @@ export default function Register() {
           }
           margin="normal"
         />
-
         {/* Логин */}
         <TextField
           fullWidth
@@ -134,7 +150,6 @@ export default function Register() {
           onChange={(e) => setData({ ...data, username: e.target.value })}
           margin="normal"
         />
-
         {/* Email */}
         <TextField
           fullWidth
@@ -145,7 +160,6 @@ export default function Register() {
           onChange={(e) => setData({ ...data, email: e.target.value })}
           margin="normal"
         />
-
         {/* Пароль */}
         <TextField
           fullWidth
@@ -163,7 +177,6 @@ export default function Register() {
             ),
           }}
         />
-
         {/* Подтверждение пароля */}
         <TextField
           fullWidth
@@ -181,7 +194,6 @@ export default function Register() {
             ),
           }}
         />
-
         {/* Название организации */}
         <TextField
           fullWidth
@@ -191,7 +203,6 @@ export default function Register() {
           onChange={(e) => setData({ ...data, organizationName: e.target.value })}
           margin="normal"
         />
-
         {/* Адрес организации */}
         <TextField
           fullWidth
@@ -201,7 +212,6 @@ export default function Register() {
           onChange={(e) => setData({ ...data, organizationAddress: e.target.value })}
           margin="normal"
         />
-
         {/* Телефон организации */}
         <TextField
           fullWidth
@@ -215,7 +225,6 @@ export default function Register() {
             inputProps: { mask: '+{7} (000) 000-00-00' },
           }}
         />
-
         {/* Чекбокс для принятия условий */}
         <FormControlLabel
           control={
@@ -226,7 +235,6 @@ export default function Register() {
           }
           label="Я принимаю лицензионное соглашение"
         />
-
         {/* Кнопка регистрации */}
         <Button
           type="submit"

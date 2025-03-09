@@ -105,7 +105,7 @@ const updateProfile = async (req, res) => {
   if (!token) return res.status(401).json({ error: 'Необходима авторизация' });
 
   try {
-    const { username, email, password, oldPassword, firstName, lastName, name, organizationName, organizationAddress, organizationPhone } = req.body;
+    const { username, email, password, firstName, lastName, name, organizationName, organizationAddress, organizationPhone } = req.body;
 
     jwt.verify(token, process.env.JWT_SECRET, async (err, decoded) => {
       if (err) return res.status(401).json({ error: 'Неверный токен' });
@@ -129,18 +129,8 @@ const updateProfile = async (req, res) => {
         }
       }
 
-      // Проверка старого пароля, если новый пароль передан
+     
       if (password) {
-        if (!oldPassword) {
-          return res.status(400).json({ error: 'Необходимо ввести старый пароль' });
-        }
-
-        const isOldPasswordValid = await bcrypt.compare(oldPassword, user.password);
-        if (!isOldPasswordValid) {
-          return res.status(400).json({ error: 'Старый пароль неверный' });
-        }
-
-        // Хешируем новый пароль
         const hashedPassword = await bcrypt.hash(password, 12);
         user.password = hashedPassword;
       }

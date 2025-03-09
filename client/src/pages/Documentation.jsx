@@ -61,7 +61,7 @@ const Documentation = () => {
       <Container maxWidth="md" sx={{ mt: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4" gutterBottom>
-            Документация HTTP-клиента
+            Документация приложения
           </Typography>
           <IconButton onClick={() => setDarkMode(!darkMode)} color="primary">
             {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}

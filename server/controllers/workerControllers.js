@@ -160,7 +160,6 @@ const updateWorker = async (req, res) => {
       // Обновляем данные работника
       worker.username = username || worker.username;
       worker.email = email || worker.email;
-
       // Если новый пароль передан, хешируем его
       if (password) {
         const hashedPassword = await bcrypt.hash(password, 12);

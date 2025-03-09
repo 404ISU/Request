@@ -48,7 +48,6 @@ const AdminPanel = () => {
   const [filterByRequests, setFilterByRequests] = useState('all'); // Фильтр по запросам
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false); // Подтверждение удаления
   const [userToDelete, setUserToDelete] = useState(null); // Пользователь для удаления
-
   // Загрузка пользователей
   const fetchUsers = async () => {
     try {
