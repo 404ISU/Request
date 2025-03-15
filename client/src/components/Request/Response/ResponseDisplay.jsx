@@ -25,11 +25,9 @@ import {
   Visibility,
   VisibilityOff
 } from '@mui/icons-material';
-import  ReactJson  from 'react-json-view';
-import SyntaxHighlighter from 'react-syntax-highlighter';
-import { atomOneDark, github } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import copy from 'clipboard-copy';
+import Editor from '@monaco-editor/react';
 import { saveAs } from 'file-saver';
+import copy from 'clipboard-copy';
 
 const ResponseDisplay = ({ 
   response, 
@@ -43,7 +41,6 @@ const ResponseDisplay = ({
   const [copied, setCopied] = useState(false);
   const [tabIndex, setTabIndex] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showHidden, setShowHidden] = useState(false);
 
   const isError = errorChecker ? errorChecker(response) 
     : status >= 400 || response?.error;
@@ -67,30 +64,36 @@ const ResponseDisplay = ({
     setSearchQuery(e.target.value.toLowerCase());
   };
 
-  const filteredResponse = useCallback(() => {
-    if (!searchQuery) return response;
-    
-    const filter = (obj) => {
-      return Object.entries(obj).reduce((acc, [key, value]) => {
-        if (typeof value === 'object' && value !== null) {
-          const filtered = filter(value);
-          if (Object.keys(filtered).length > 0) {
-            acc[key] = filtered;
+  const filteredContent = useCallback(() => {
+    if (!searchQuery) return responseContent;
+    try {
+      const json = JSON.parse(responseContent);
+      const searchLower = searchQuery.toLowerCase();
+      
+      const filter = (obj) => {
+        return Object.entries(obj).reduce((acc, [key, value]) => {
+          if (typeof value === 'object' && value !== null) {
+            const nested = filter(value);
+            if (Object.keys(nested).length > 0) {
+              acc[key] = nested;
+            }
+          } else if (
+            key.toLowerCase().includes(searchLower) ||
+            String(value).toLowerCase().includes(searchLower)
+          ) {
+            acc[key] = value;
           }
-        } else if (
-          key.toLowerCase().includes(searchQuery) ||
-          String(value).toLowerCase().includes(searchQuery)
-        ) {
-          acc[key] = value;
-        }
-        return acc;
-      }, {});
-    };
+          return acc;
+        }, {});
+      };
 
-    return filter(response);
-  }, [response, searchQuery]);
+      return JSON.stringify(filter(json), null, 2);
+    } catch {
+      return responseContent;
+    }
+  }, [responseContent, searchQuery]);
 
-  const syntaxTheme = theme.palette.mode === 'dark' ? atomOneDark : github;
+  const syntaxTheme = theme.palette.mode === 'dark' ? 'vs-dark' : 'light';
   const statusColor = isError ? 'error.main' : 'success.main';
 
   const renderHeaders = () => (
@@ -103,53 +106,6 @@ const ResponseDisplay = ({
       ))}
     </Box>
   );
-
-  const renderTabsContent = () => {
-    switch (tabIndex) {
-      case 0: // Pretty
-        return (
-          <ReactJson
-            src={filteredResponse()}
-            theme={theme.palette.mode === 'dark' ? 'monokai' : 'rjv-default'}
-            name={false}
-            collapsed={2}
-            enableClipboard={false}
-            displayDataTypes={false}
-            iconStyle="triangle"
-            style={{ 
-              padding: 16,
-              borderRadius: 4,
-              marginTop: 16,
-              backgroundColor: theme.palette.background.default
-            }}
-            groupArraysAfterLength={25}
-            {...(showHidden && { collapseStringsAfterLength: 100 })}
-          />
-        );
-      case 1: // Raw
-        return (
-          <SyntaxHighlighter 
-            language="json"
-            style={syntaxTheme}
-            wrapLines
-            lineProps={{ style: { wordBreak: 'break-all' } }}
-            customStyle={{ 
-              marginTop: 16,
-              borderRadius: 4,
-              padding: 16,
-              fontSize: '0.85rem',
-              fontFamily: 'Menlo, Monaco, Consolas, "Courier New", monospace'
-            }}
-          >
-            {JSON.stringify(filteredResponse(), null, 2)}
-          </SyntaxHighlighter>
-        );
-      case 2: // Headers
-        return renderHeaders();
-      default:
-        return null;
-    }
-  };
 
   return (
     <Fade in={true} timeout={500}>
@@ -196,12 +152,6 @@ const ResponseDisplay = ({
                 </IconButton>
               </Tooltip>
 
-              <Tooltip title={showHidden ? 'Скрыть длинные значения' : 'Показать все значения'}>
-                <IconButton onClick={() => setShowHidden(!showHidden)} size="small">
-                  {showHidden ? <VisibilityOff /> : <Visibility />}
-                </IconButton>
-              </Tooltip>
-
               <Tooltip title={expanded ? 'Свернуть' : 'Развернуть'}>
                 <IconButton onClick={() => setExpanded(!expanded)} size="small">
                   {expanded ? <ExpandLess /> : <ExpandMore />}
@@ -216,9 +166,8 @@ const ResponseDisplay = ({
               onChange={(e, newValue) => setTabIndex(newValue)}
               sx={{ mb: 2 }}
             >
-              <Tab label="Pretty" />
-              <Tab label="Raw" />
-              {Object.keys(headers).length > 0 && <Tab label="Headers" />}
+              <Tab label="JSON" />
+              <Tab label="Headers" />
             </Tabs>
 
             <TextField
@@ -233,7 +182,26 @@ const ResponseDisplay = ({
               sx={{ mb: 2 }}
             />
 
-            {renderTabsContent()}
+            {tabIndex === 0 ? (
+              <Editor
+                height="400px"
+                language="json"
+                value={filteredContent()}
+                theme={syntaxTheme}
+                options={{
+                  readOnly: true,
+                  minimap: { enabled: false },
+                  fontSize: 14,
+                  lineNumbers: 'off',
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  folding: true,
+                  renderLineHighlight: 'none'
+                }}
+              />
+            ) : (
+              renderHeaders()
+            )}
           </Collapse>
         </Stack>
       </Paper>
@@ -241,7 +209,6 @@ const ResponseDisplay = ({
   );
 };
 
-// Хелпер для получения текста HTTP статуса
 const httpStatusText = (status) => {
   const statusMap = {
     200: 'OK',
