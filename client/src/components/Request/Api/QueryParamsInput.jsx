@@ -1,8 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { TextField, Button, Box, Typography } from '@mui/material';
 
-const QueryParamsInput = ({ onChange }) => {
+const QueryParamsInput = ({ value, onChange }) => {
   const [params, setParams] = useState([{ key: '', value: '' }]);
+
+  const initialParams = useMemo(() => {
+    try {
+      return Object.entries(JSON.parse(value)).map(([key, val]) => ({ key, value: val }));
+    } catch {
+      return [{ key: '', value: '' }];
+    }
+  }, [value]);
 
   const handleParamChange = (index, field, value) => {
     const newParams = [...params];
@@ -15,35 +23,34 @@ const QueryParamsInput = ({ onChange }) => {
     setParams([...params, { key: '', value: '' }]);
   };
 
+  useEffect(() => {
+    // Отправляем пустой объект вместо undefined
+    onChange(params.filter(p => p.key && p.value));
+  }, [params]);
+
   return (
-    <Box >
+    <Box sx={{ mb: 2 }}>
+      <Typography variant="h6">Query Parameters</Typography>
       {params.map((param, index) => (
-        <Box>
-          <Typography>Параметры запроса</Typography>
-          <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }} >
+        <Box key={index} sx={{ display: 'flex', gap: 2, mb: 2 }}>
           <TextField
             label="Key"
             value={param.key}
             onChange={(e) => handleParamChange(index, 'key', e.target.value)}
             fullWidth
-            variant="outlined"
           />
           <TextField
             label="Value"
             value={param.value}
             onChange={(e) => handleParamChange(index, 'value', e.target.value)}
             fullWidth
-            variant="outlined"
           />
         </Box>
-        </Box>
-        
       ))}
       <Button onClick={addParam} variant="outlined">
-        Добавить Параметр
+        Добавить параметр
       </Button>
     </Box>
   );
 };
-
 export default QueryParamsInput;

@@ -7,7 +7,8 @@ const EnvironmentVariables = ({onChange})=>{
     const newVariables = [...variables];
     newVariables[index][field]=value;
     setVariables(newVariables);
-    onChange(newVariables.filter((variable)=> variable.key && variable.value));
+    const filtered = newVariables.filter(v=>v.key.trim() && v.value.trim());
+    onChange(filtered);
   };
 
 

@@ -3,7 +3,7 @@ import {Select, MenuItem, TextField, Button, Box, Typography} from '@mui/materia
 
 
 const AssertionsInput = ({onChange})=>{
-  const [assertions, setAssertions] =useState([{type: 'status', expected: ''}]);
+  const [assertions, setAssertions] =useState([{  id: Date.now(), type: 'status', expected: ''}]);
 
   const handleAssertionChange = (index, field, value)=>{
     const newAssertions = [...assertions];
@@ -13,13 +13,13 @@ const AssertionsInput = ({onChange})=>{
   };
 
   const addAssertion = ()=>{
-    setAssertions([...assertions, {type: 'staatus', expected: ''}]);
+    setAssertions([...assertions, {id: Date.now(),type: 'status', expected: ''}]);
   };
 
   return(
     <Box>
       {assertions.map((assertion, index)=>(
-        <Box>
+        <Box key={assertion.id} sx={{ mb: 2 }}>
           <Typography variant="subtitle2">Оператор запроса {index+1}</Typography>
           <Box key={index} sx={{display: 'flex', gap:2, mb:2}}>
           <Select value={assertion.type}

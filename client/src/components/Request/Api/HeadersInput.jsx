@@ -16,7 +16,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 const HeadersInput = ({ value, onChange }) => {
   const [isOpen, setIsOpen] = useState(false);
-
+  const [parseError, setParseError] = useState(null);
   // Преобразуем входящие заголовки в массив объектов
   const initialHeaders = Object.entries(JSON.parse(value || '{}')).map(([key, value]) => ({
     key,

@@ -7,7 +7,7 @@ const AuthInput = ({onChange})=>{
   const [token, setToken]=useState('');
 
   const handleAuthTypeChange = (e)=>{
-    setAuthType(e.target.value, token);
+    setAuthType(e.target.value);
     onChange({type: e.target.value, token});
   };
 

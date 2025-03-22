@@ -1,268 +1,228 @@
-// components/RequestForm.js
-
 import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
-  TextField,
-  Select,
-  MenuItem,
-  Button,
+  Paper,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  Paper,
   Box,
   Tabs,
   Tab,
-  useTheme,
-  ThemeProvider,
-  createTheme,
-  IconButton,
+  Button,
+  Alert
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import Brightness4Icon from '@mui/icons-material/Brightness4';
-import Brightness7Icon from '@mui/icons-material/Brightness7';
 import ApiInput from './Api/ApiInput';
 import MethodSelector from './Api/MethodSelector';
 import HeadersInput from './Api/HeadersInput';
 import BodyInput from './Api/BodyInput';
-import RequestHistory from './Response/RequestHistory';
+import AssertionsInput from './Api/AssertionsInput';
 import ResponseDisplay from './Response/ResponseDisplay';
+import RequestHistory from './Response/RequestHistory';
+import axios from 'axios';
 import AuthInput from './Api/AuthInput';
 import QueryParamsInput from './Api/QueryParamsInput';
 import EnvironmentVariables from './Api/EnvironmentVariables';
 
-import AssertionsInput from './Api/AssertionsInput';
-import axios from 'axios';
-
 const RequestForm = () => {
+  const [activeTab, setActiveTab] = useState(0);
   const [apiUrl, setApiUrl] = useState('');
-  const [method, setMethod] = useState('get');
+  const [method, setMethod] = useState('GET');
   const [headers, setHeaders] = useState('{}');
   const [body, setBody] = useState('{}');
-  const [requestHistory, setRequestHistory] = useState([]);
   const [response, setResponse] = useState(null);
-  const [auth, setAuth] = useState({ type: 'none', token: '' });
-  const [queryParams, setQueryParams] = useState([]);
-  const [envVariables, setEnvVariables] = useState([]);
-  const [savedRequests, setSavedRequests] = useState([]);
+  const [requestHistory, setRequestHistory] = useState([]);
   const [assertions, setAssertions] = useState([]);
-  const [activeTab, setActiveTab] = useState(0);
-  const [darkMode, setDarkMode] = useState(false);
+  const [queryParams, setQueryParams] = useState('{}');
+  const [auth, setAuth] = useState({ type: 'none', token: '' });
+  const [envVars, setEnvVars] = useState([]);
 
-  const theme = createTheme({
-    palette: {
-      mode: darkMode ? 'dark' : 'light',
-    },
-  });
-
-  const handleApiUrlChange = (e) => setApiUrl(e.target.value);
-  const handleMethodChange = (e) => setMethod(e.target.value);
-  const handleHeadersChange = (newValue) => {setHeaders(newValue)};
-  const handleBodyChange = (e) => setBody(e.target.value);
-  const handleAuthChange = (auth) => setAuth(auth);
-  const handleQueryParamsChange = (params) => setQueryParams(params);
-  const handleFileChange = (file) => setFile(file);
-  const handleEnvVariablesChange = (variables) => setEnvVariables(variables);
-  const handleSaveRequest = (name) => {
-    const request = {
-      name,
-      apiUrl,
-      method,
-      headers,
-      body,
-      queryParams,
-      auth,
-      file,
-    };
-    setSavedRequests([...savedRequests, request]);
-  };
-  const handleLoadRequest = (name) => {
-    const request = savedRequests.find((req) => req.name === name);
-    if (request) {
-      setApiUrl(request.apiUrl);
-      setMethod(request.method);
-      setHeaders(request.headers);
-      setBody(request.body);
-      setQueryParams(request.queryParams);
-      setAuth(request.auth);
-      setFile(request.file);
+  // Получение истории запросов
+  const fetchHistory = async () => {
+    try {
+      const { data } = await axios.get('/api/requests/history');
+      setRequestHistory(data);
+    } catch (error) {
+      console.error('Ошибка загрузки истории:', error);
     }
   };
-  const handleAssertionChange = (assertions) => setAssertions(assertions);
 
+  useEffect(() => { fetchHistory(); }, []);
+
+  // Обработчик отправки формы
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const start = Date.now(); // Фиксируем время начала
+
     try {
-      const url = new URL(apiUrl);
-      queryParams.forEach((param) => {
-        url.searchParams.append(param.key, param.value);
-      });
-  
-      let finalUrl = apiUrl;
-      let finalHeaders = headers;
-      let finalBody = body;
-  
-      envVariables.forEach((variable) => {
-        finalUrl = finalUrl.replace(`{{${variable.key}}}`, variable.value);
-        finalHeaders = finalHeaders.replace(`{{${variable.key}}}`, variable.value);
-        finalBody = finalBody.replace(`{{${variable.key}}}`, variable.value);
-      });
-  
-      const parsedHeaders = finalHeaders ? JSON.parse(finalHeaders) : {};
-      const parsedBody = finalBody ? JSON.parse(finalBody) : null;
-  
+      // Парсим все параметры
+      const parsedHeaders = JSON.parse(headers);
+      const parsedBody = JSON.parse(body);
+      const parsedQuery = typeof queryParams === 'string' 
+      ? JSON.parse(queryParams)
+      : queryParams;
+
+      // Добавляем авторизацию в заголовки
       if (auth.type === 'bearer') {
         parsedHeaders['Authorization'] = `Bearer ${auth.token}`;
       } else if (auth.type === 'basic') {
         parsedHeaders['Authorization'] = `Basic ${btoa(auth.token)}`;
       }
-  
-      const response = await axios.post('http://localhost:5001/api/requests/makeRequest', {
-        url: finalUrl.toString(),
-        method,
-        headers: JSON.stringify(parsedHeaders),
-        body: JSON.stringify(parsedBody),
+
+      // Заменяем переменные окружения в URL
+      let finalUrl = apiUrl;
+      envVars.forEach(({ key, value }) => {
+        finalUrl = finalUrl.replace(`{{${key}}}`, value);
       });
-  
-      assertions.forEach((assertion) => {
-        if (assertion.type === 'status' && response.status !== parseInt(assertion.expected)) {
-          throw new Error(`Assertion failed: Expected status ${assertion.expected}, got ${response.status}`);
-        } else if (
-          assertion.type === 'body' &&
-          typeof response.data === 'string' &&
-          !response.data.includes(assertion.expected)
-        ) {
-          throw new Error(`Assertion failed: Expected body to contain "${assertion.expected}"`);
-        }
+
+      // Формируем URL с query-параметрами
+      const urlObj = new URL(apiUrl);
+      if (parsedQuery && typeof parsedQuery === 'object') {
+        Object.entries(parsedQuery).forEach(([key, value]) => {
+          if (key && value !== undefined) {
+            urlObj.searchParams.append(key, value);
+          }
+        });
+      }
+
+      // Отправляем запрос
+      const result = await axios.post('/api/requests/makeRequest', {
+        method: method.toUpperCase(),
+        url: urlObj.toString(),
+        headers: parsedHeaders,
+        data: method.toUpperCase() === 'GET' ? undefined : parsedBody
       });
-  
+
+      // Обновляем состояние ответа
       setResponse({
-        data: response.data,
-        status: response.status,
-        headers: response.headers,
+        data: result.data.data,
+        status: result.data.status,
+        headers: result.data.headers,
+        latency: result.data.latency,
+        timestamp: new Date().toISOString()
       });
+
+      await fetchHistory();
+
     } catch (error) {
+      console.error('Ошибка запроса:', error);
       setResponse({
-        error: error.message,
+        error: error.response?.data?.message || error.message,
         status: error.response?.status,
-        data: error.response?.data,
+        latency: Date.now() - start,
+        data: error.response?.data
       });
-    } finally {
-      fetchHistory();
     }
   };
 
-  const fetchHistory = async () => {
-    try {
-      const historyResponse = await axios.get('http://localhost:5001/api/requests/history', {
-        withCredentials: true,
-      });
-      setRequestHistory(historyResponse.data);
-    } catch (error) {
-      console.error('Error fetching history:', error);
-    }
-  };
 
-  useEffect(() => {
-    fetchHistory();
-  }, []);
 
-  // Обработка выбора запроса из истории
+
+  // Обработчик выбора из истории
   const handleReuseRequest = (request) => {
-    // Преобразуем заголовки и тело в JSON (если они строки)
-    const parsedHeaders =
-      typeof request.headers === 'string' ? JSON.parse(request.headers) : request.headers || {};
-    const parsedBody =
-      typeof request.body === 'string' ? JSON.parse(request.body) : request.body || null;
+    try {
+      const urlObj = new URL(request.url);
+      const baseUrl = `${urlObj.origin}${urlObj.pathname}`;
+      const queryParamsFromUrl = Object.fromEntries(urlObj.searchParams.entries());
+
+      let responseBody = {};
+      if (request.response?.body) {
+        // Проверяем тип данных перед парсингом
+        responseBody = typeof request.response.body === 'string' 
+          ? JSON.parse(request.response.body) 
+          : request.response.body;
+      }
   
-    // Заполняем форму данными из выбранного запроса
-    setApiUrl(request.url);
-    setMethod(request.method);
-    setHeaders(JSON.stringify(parsedHeaders, null, 2));
-    setBody(JSON.stringify(parsedBody, null, 2));
-    setQueryParams(request.queryParams || []);
-    setAuth(request.auth || { type: 'none', token: '' });
-    setAssertions(request.assertions || []);
+      setApiUrl(baseUrl);
+      setMethod(request.method);
+      setQueryParams(JSON.stringify(queryParamsFromUrl, null, 2));
   
-    // Устанавливаем результаты запроса
-    setResponse({
-      data: request.response?.body,
-      status: request.response?.status,
-      headers: request.response?.headers,
-    });
+      const headersValue = typeof request.headers === 'string' 
+        ? request.headers 
+        : JSON.stringify(request.headers || {}, null, 2);
+      setHeaders(headersValue);
+  
+      const bodyValue = typeof request.body === 'string'
+        ? request.body
+        : JSON.stringify(request.body || {}, null, 2);
+      setBody(bodyValue);
+  
+      setResponse({
+        data: responseBody,
+        status: request.response?.status || 200,
+        headers: request.response?.headers || {},
+        latency: request.response?.latency || 0
+      });
+  
+      setTimeout(() => setActiveTab(0), 0);
+    } catch (error) {
+      console.error('Ошибка восстановления запроса:', error);
+      setResponse({
+        error: 'Ошибка загрузки данных из истории',
+        data: {}
+      });
+    }
   };
-
   return (
-    <ThemeProvider theme={theme}>
-      <Container maxWidth="md" sx={{ mt: 4 }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-          <Typography variant="h4" gutterBottom>
-            API
-          </Typography>
-          <IconButton onClick={() => setDarkMode(!darkMode)} color="inherit">
-            {darkMode ? <Brightness7Icon /> : <Brightness4Icon />}
-          </IconButton>
-        </Box>
-        <Tabs
-          value={activeTab}
-          onChange={(e, newValue) => setActiveTab(newValue)}
-          sx={{
-            mb: 3,
-            '& .MuiTabs-indicator': {
-              backgroundColor: theme.palette.mode === 'dark' ? '#1976d2' : '#1976d2',
-            },
-            '& .MuiTab-root': {
-              color: theme.palette.mode === 'dark' ? '#fff' : '#1976d2',
-              backgroundColor: theme.palette.mode === 'dark' ? '#121212' : '#fff',
-            },
-            '& .Mui-selected': {
-              color: theme.palette.mode === 'dark' ? '#fff' : '#1976d2',
-            },
-          }}
-        >
-          <Tab label="Запрос" />
-          <Tab label="Ответ" />
-          <Tab label="История" />
+    <Container maxWidth="md" sx={{ mt: 4 }}>
+      <Tabs value={activeTab} onChange={(_, newVal) => setActiveTab(newVal)}>
+        <Tab label="Новый запрос" />
+        <Tab label="История" />
+        <Tab label="Настройки" />
+      </Tabs>
 
-        </Tabs>
+      {activeTab === 0 ? (
+        <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
+          <ApiInput value={apiUrl} onChange={setApiUrl} />
+          <MethodSelector value={method} onChange={setMethod} />
 
-        {activeTab === 0 && (
-          <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-            <ApiInput value={apiUrl} onChange={handleApiUrlChange} />
-            <MethodSelector value={method} onChange={handleMethodChange} />
-            <HeadersInput value={headers} onChange={handleHeadersChange} />
-            <BodyInput value={body} onChange={handleBodyChange} />
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography>Дополнительные настройки</Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <QueryParamsInput onChange={handleQueryParamsChange} />
-                <AuthInput onChange={handleAuthChange} />
-                <EnvironmentVariables onChange={handleEnvVariablesChange} />
-                <AssertionsInput onChange={handleAssertionChange} />
-              </AccordionDetails>
-            </Accordion>
-            <Button variant="contained" color="primary" fullWidth sx={{ mt: 2 }} onClick={handleSubmit}>
-              Отправить запрос
-            </Button>
-          </Paper>
-        )}
+          <Accordion>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography>Дополнительные параметры</Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <AuthInput onChange={setAuth} />
+              <HeadersInput value={headers} onChange={setHeaders} />
+              <QueryParamsInput onChange={setQueryParams} />
+              <BodyInput value={body} onChange={setBody} />
+              <EnvironmentVariables onChange={setEnvVars} />
+              <AssertionsInput onChange={setAssertions} />
+            </AccordionDetails>
+          </Accordion>
 
-        {activeTab === 1 && response && <ResponseDisplay response={response} />}
+          <Button 
+            fullWidth 
+            variant="contained" 
+            sx={{ mt: 2 }}
+            onClick={handleSubmit}
+          >
+            Отправить запрос
+          </Button>
 
-        {activeTab === 2 && (
-          <RequestHistory
-            requests={requestHistory}
-            onReuseRequest={handleReuseRequest} // Передаем функцию для загрузки запроса
-          />
-        )}
-
-
-      </Container>
-    </ThemeProvider>
+          {response && (
+            <Box sx={{ mt: 2 }}>
+              <ResponseDisplay 
+                data={response.data}
+                status={response.status}
+                headers={response.headers}
+                latency={response.latency}
+                error={response.error}
+              />
+            </Box>
+          )}
+        </Paper>
+      ) : activeTab === 1 ? (
+        <RequestHistory 
+          requests={requestHistory}
+          onReuseRequest={handleReuseRequest}
+        />
+      ) : (
+        <Paper elevation={3} sx={{ p: 3 }}>
+          <EnvironmentVariables onChange={setEnvVars} />
+        </Paper>
+      )}
+    </Container>
   );
 };
 
