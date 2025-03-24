@@ -1,47 +1,113 @@
-import React, {useState} from 'react';
-import {Select, MenuItem, TextField, Button, Box, Typography} from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Box, TextField, Button, Select, MenuItem, IconButton, Typography } from '@mui/material';
+import { Delete, Add } from '@mui/icons-material';
+import PropTypes from 'prop-types';
 
+const AssertionsInput = ({ onChange }) => {
+  const [assertions, setAssertions] = useState([
+    { id: 1, type: 'status', expected: '', operator: 'equals' }
+  ]);
 
-const AssertionsInput = ({onChange})=>{
-  const [assertions, setAssertions] =useState([{  id: Date.now(), type: 'status', expected: ''}]);
+  // Типы проверок
+  const assertionTypes = {
+    status: {
+      operators: ['equals', 'not equals', 'greater than', 'less than'],
+      inputType: 'number'
+    },
+    body: {
+      operators: ['contains', 'not contains', 'equals'],
+      inputType: 'text'
+    },
+    headers: {
+      operators: ['exists', 'not exists', 'equals'],
+      inputType: 'text'
+    }
+  };
 
-  const handleAssertionChange = (index, field, value)=>{
-    const newAssertions = [...assertions];
-    newAssertions[index][field]=value;
+  // Обновление проверки
+  const updateAssertion = (id, field, value) => {
+    const newAssertions = assertions.map(a => 
+      a.id === id ? { ...a, [field]: value } : a
+    );
     setAssertions(newAssertions);
-    onChange(newAssertions.filter((assertions)=>assertions.expected));
+    onChange(newAssertions.filter(a => a.expected));
   };
 
-  const addAssertion = ()=>{
-    setAssertions([...assertions, {id: Date.now(),type: 'status', expected: ''}]);
+  // Добавление новой проверки
+  const addAssertion = () => {
+    setAssertions([...assertions, {
+      id: Date.now(),
+      type: 'status',
+      operator: 'equals',
+      expected: ''
+    }]);
   };
 
-  return(
-    <Box>
-      {assertions.map((assertion, index)=>(
-        <Box key={assertion.id} sx={{ mb: 2 }}>
-          <Typography variant="subtitle2">Оператор запроса {index+1}</Typography>
-          <Box key={index} sx={{display: 'flex', gap:2, mb:2}}>
-          <Select value={assertion.type}
-          onChange={(e)=> handleAssertionChange(index, 'type', e.target.value)}
-          fullWidth
-          variant="outlined"
+  // Удаление проверки
+  const removeAssertion = (id) => {
+    setAssertions(assertions.filter(a => a.id !== id));
+  };
+
+  return (
+    <Box sx={{ border: '1px solid #ddd', borderRadius: 2, p: 2, mb: 2 }}>
+      <Typography variant="subtitle1" gutterBottom>
+        Проверки ответа
+      </Typography>
+
+      {assertions.map((assertion) => (
+        <Box key={assertion.id} sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center' }}>
+          <Select
+            value={assertion.type}
+            onChange={(e) => updateAssertion(assertion.id, 'type', e.target.value)}
+            sx={{ width: 150 }}
           >
-            <MenuItem value="status">Status Code</MenuItem>
-            <MenuItem value="body">Body Contains</MenuItem>
+            <MenuItem value="status">Статус код</MenuItem>
+            <MenuItem value="body">Тело ответа</MenuItem>
+            <MenuItem value="headers">Заголовки</MenuItem>
           </Select>
-          <TextField label="Expected Value" value={assertion.expected} onChange={(e)=>handleAssertionChange(index, 'expected', e.target.value)}
+
+          <Select
+            value={assertion.operator}
+            onChange={(e) => updateAssertion(assertion.id, 'operator', e.target.value)}
+            sx={{ width: 150 }}
+          >
+            {assertionTypes[assertion.type].operators.map(op => (
+              <MenuItem key={op} value={op}>{op}</MenuItem>
+            ))}
+          </Select>
+
+          <TextField
             fullWidth
-            variant="outlined"/>
+            type={assertionTypes[assertion.type].inputType}
+            label="Ожидаемое значение"
+            value={assertion.expected}
+            onChange={(e) => updateAssertion(assertion.id, 'expected', e.target.value)}
+          />
+
+          <IconButton 
+            onClick={() => removeAssertion(assertion.id)}
+            color="error"
+            sx={{ ml: 'auto' }}
+          >
+            <Delete />
+          </IconButton>
         </Box>
-        </Box>
-        
       ))}
-      <Button onClick={addAssertion} variant="outlined">
-        Добавить оператор
+
+      <Button 
+        variant="outlined" 
+        startIcon={<Add />}
+        onClick={addAssertion}
+        fullWidth
+      >
+        Добавить проверку
       </Button>
     </Box>
-  )
-}
+  );
+};
+
+AssertionsInput.propTypes = {
+  onChange: PropTypes.func.isRequired
+};
 
 export default AssertionsInput;

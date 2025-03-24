@@ -1,90 +1,128 @@
-import React, { memo, useMemo, useState } from 'react';
+import React, { memo, Suspense, useState, useCallback } from 'react';
 import { 
   Paper,
   Typography,
-  IconButton,
   Box,
-  Stack,
-  Collapse,
   Tabs,
   Tab,
-  Alert
+  Chip,
+  CircularProgress,
+  IconButton,
+  Tooltip,
+  useTheme,
+  styled
 } from '@mui/material';
-import { ExpandMore, ExpandLess } from '@mui/icons-material';
-import Editor from '@monaco-editor/react';
+import { Code, ContentCopy, Http, Timer, CheckCircleOutline, ErrorOutline } from '@mui/icons-material';
 
-const ResponseDisplay = memo(({ 
-  data, 
-  status, 
-  headers, 
-  latency, 
-  timestamp, 
-  error 
-}) => {
-  const [expanded, setExpanded] = useState(true);
-  const [viewMode, setViewMode] = useState('json');
+const Editor = React.lazy(() => import('@monaco-editor/react'));
 
-  const formattedResponse = useMemo(() => {
-    if (!data || Object.keys(data).length === 0) return '{}';
-    return JSON.stringify(data, null, 2);
-  }, [data]);
+const ResponseDisplay = memo(({ data, status, headers, latency }) => {
+  const theme = useTheme();
+  const [viewMode, setViewMode] = useState('body');
+  const [copied, setCopied] = useState(false);
+  const [formattedContent, setFormattedContent] = useState('');
+
+  const formatJSON = useCallback((input) => {
+    try {
+      if (typeof input === 'string') {
+        input = JSON.parse(input);
+      }
+      return JSON.stringify(input, null, 2);
+    } catch (error) {
+      try {
+        return JSON.stringify(JSON.parse(JSON.stringify(input)), null, 2);
+      } catch {
+        return typeof input === 'string' ? input : String(input);
+      }
+    }
+  }, []);
+
+  const handleEditorMount = useCallback((editor) => {
+    setTimeout(() => {
+      editor.getAction('editor.action.formatDocument').run();
+    }, 100);
+  }, []);
+
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(formattedContent);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <Paper elevation={3} sx={{ mt: 2, p: 2 }}>
-      <Stack spacing={1}>
-        <Box display="flex" alignItems="center" justifyContent="space-between">
-          <Typography variant="h6">
-            {error ? 'Ошибка' : `Ответ ${status} (${latency} мс)`}
-          </Typography>
-          <IconButton onClick={() => setExpanded(!expanded)}>
-            {expanded ? <ExpandLess /> : <ExpandMore />}
+    <Paper elevation={3} sx={{ 
+      mt: 2,
+      p: 2,
+      borderRadius: '8px',
+      border: `1px solid ${theme.palette.divider}`,
+      backgroundColor: theme.palette.background.paper
+    }}>
+      <Box display="flex" alignItems="center" gap={2} mb={2}>
+        <Chip 
+          label={`Status: ${status}`}
+          color={status >= 400 ? 'error' : 'success'}
+          icon={status >= 400 ? <ErrorOutline /> : <CheckCircleOutline />}
+        />
+        <Typography variant="body2" color="text.secondary">
+          <Timer fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
+          {latency}ms
+        </Typography>
+        
+        <Tooltip title={copied ? "Copied!" : "Copy response"}>
+          <IconButton onClick={handleCopy} size="small" sx={{ ml: 'auto' }}>
+            {copied ? <CheckCircleOutline color="success" /> : <ContentCopy />}
           </IconButton>
-        </Box>
+        </Tooltip>
+      </Box>
 
-        <Collapse in={expanded}>
-          {error ? (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
-            </Alert>
-          ) : (
-            <>
-              <Tabs 
-                value={viewMode} 
-                onChange={(_, newValue) => setViewMode(newValue)}
-                sx={{ mb: 1 }}
-              >
-                <Tab label="JSON" value="json" />
-                <Tab label="Заголовки" value="headers" />
-              </Tabs>
+      <Tabs 
+        value={viewMode} 
+        onChange={(_, v) => setViewMode(v)}
+        sx={{ borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab 
+          label="Body" 
+          value="body" 
+          icon={<Code fontSize="small" />}
+          sx={{ minHeight: 48, textTransform: 'none' }}
+        />
+        <Tab 
+          label="Headers" 
+          value="headers" 
+          icon={<Http fontSize="small" />}
+          sx={{ minHeight: 48, textTransform: 'none' }}
+        />
+      </Tabs>
 
-              {viewMode === 'json' ? (
-                <Editor
-                  height="300px"
-                  language="json"
-                  value={formattedResponse}
-                  options={{
-                    readOnly: true,
-                    minimap: { enabled: false },
-                    lineNumbers: 'off'
-                  }}
-                />
-              ) : (
-                <Box sx={{ mt: 2 }}>
-                  {Object.entries(headers || {}).map(([key, value]) => (
-                    <Box key={key} sx={{ mb: 1 }}>
-                      <Typography variant="body2" fontWeight="bold">
-                        {key}:
-                      </Typography>
-                      <Typography variant="body2">
-                        {Array.isArray(value) ? value.join(', ') : value}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </>
-          )}
-        </Collapse>
-      </Stack>
+      <Box sx={{ height: '400px', mt: 2, position: 'relative' }}>
+        <Suspense fallback={
+          <Box height="100%" display="flex" alignItems="center" justifyContent="center">
+            <CircularProgress size={32} thickness={4} />
+          </Box>
+        }>
+          <Editor
+            height="100%"
+            language="json"
+            value={formatJSON(viewMode === 'body' ? data : headers)}
+            theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
+            onMount={handleEditorMount}
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              lineNumbers: 'off',
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              formatOnPaste: true,
+              formatOnType: true,
+              renderValidationDecorations: 'off',
+              quickSuggestions: false,
+              suggestOnTriggerCharacters: false,
+              fontSize: 14,
+              fontFamily: 'Menlo, Monaco, Consolas, monospace'
+            }}
+          />
+        </Suspense>
+      </Box>
     </Paper>
   );
 });

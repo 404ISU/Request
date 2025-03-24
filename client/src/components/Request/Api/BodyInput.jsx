@@ -1,43 +1,64 @@
 import React, { useState } from 'react';
-import { TextField, Typography, Collapse, IconButton } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import { Box, Typography, Collapse } from '@mui/material';
+import Editor from '@monaco-editor/react';
 
-const BodyInput = ({ value, onChange }) => {
+const BodyInput = ({ value, onChange, method }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [isValidJson, setIsValidJson] = useState(true);
+  const [isValid, setIsValid] = useState(true);
 
-  const handleChange = (e) => {
-    const newValue = e.target.value;
-    onChange(e);
+  const handleEditorChange = (value) => {
     try {
-      JSON.parse(newValue);
-      setIsValidJson(true);
-    } catch (error) {
-      setIsValidJson(false);
+      if (method !== 'GET') JSON.parse(value);
+      setIsValid(true);
+    } catch {
+      setIsValid(false);
     }
+    onChange(value);
   };
 
   return (
-    <div>
-      <Typography variant="h6" onClick={() => setIsOpen(!isOpen)} sx={{ cursor: 'pointer' }}>
-        Body (JSON) {isOpen ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-      </Typography>
-      <Collapse in={isOpen}>
-        <TextField
-          value={value}
-          onChange={handleChange}
-          fullWidth
-          multiline
-          rows={5}
-          placeholder='{"key": "value"}'
-          variant="outlined"
-          margin="normal"
-          error={!isValidJson}
-          helperText={!isValidJson ? 'Invalid JSON' : ''}
-        />
+    <Box sx={{ 
+      border: '1px solid', 
+      borderColor: isValid ? 'divider' : 'error.main',
+      borderRadius: 2,
+      mb: 2
+    }}>
+      <Box 
+        onClick={() => setIsOpen(!isOpen)}
+        sx={{ 
+          p: 1.5,
+          cursor: 'pointer',
+          bgcolor: 'background.default',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}
+      >
+        <Typography variant="subtitle1">
+          Request Body {method === 'GET' && '(disabled for GET)'}
+        </Typography>
+        <Typography color={isValid ? 'text.secondary' : 'error'}>
+          {isOpen ? '▲' : '▼'}
+        </Typography>
+      </Box>
+
+      <Collapse in={isOpen && method !== 'GET'}>
+        <Box sx={{ height: '200px' }}>
+          <Editor
+            height="100%"
+            defaultLanguage="json"
+            value={value}
+            onChange={handleEditorChange}
+            options={{
+              readOnly: method === 'GET',
+              minimap: { enabled: false },
+              lineNumbers: 'off',
+              scrollBeyondLastLine: false
+            }}
+          />
+        </Box>
       </Collapse>
-    </div>
+    </Box>
   );
 };
 

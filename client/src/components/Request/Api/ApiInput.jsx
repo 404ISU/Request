@@ -1,9 +1,9 @@
+// ApiInput.jsx
 import React from 'react';
 import { TextField } from '@mui/material';
 
-const ApiInput = ({ value, onChange }) => {
+const ApiInput = ({ value, onChange, onBlur }) => {
   const handleChange = (e) => {
-    // Убедимся, что передается только строка
     onChange(e.target.value);
   };
 
@@ -12,12 +12,12 @@ const ApiInput = ({ value, onChange }) => {
       label="API URL"
       value={value}
       onChange={handleChange}
+      onBlur={onBlur}
       fullWidth
       margin="normal"
       placeholder="https://api.example.com/endpoint"
       variant="outlined"
-      error={!!value.match(/\[object Object\]/i)}
-      helperText={value.match(/\[object Object\]/i) ? "Некорректный URL" : ""}
+      required
     />
   );
 };

@@ -14,6 +14,8 @@ import UserProfile from './components/User/UserProfile';
 import AdminPanel from './components/Admin/AdminPanel';
 import ErrorBoundary from './components/Error/ErrorBoundary';
 import Documentation from './pages/Documentation';
+import { ThemeProvider } from '@mui/material';
+import theme from './assets/theme';
 // Configure Axios defaults
 axios.defaults.baseURL = 'http://localhost:5001';
 axios.defaults.withCredentials = true;
@@ -22,7 +24,8 @@ function App() {
   return (
     <UserContextProvider>
       <ErrorBoundary>
-      <Navbar />
+      <ThemeProvider theme={theme}>
+        <Navbar />
       <Toaster position="bottom-right" toastOptions={{ duration: 2000 }} />
       
         <Routes>
@@ -36,6 +39,8 @@ function App() {
           <Route path="/admin-panel" element={<AdminPanel />} />
           <Route path="/documentation" element={<Documentation />} />
         </Routes>
+      </ThemeProvider>
+      
       </ErrorBoundary>
     </UserContextProvider>
   );

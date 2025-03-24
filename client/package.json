@@ -26,7 +26,8 @@
     "react-syntax-highlighter": "^15.6.1",
     "react-window": "^1.8.11",
     "recharts": "^2.15.1",
-    "use-debounce": "^10.0.4"
+    "use-debounce": "^10.0.4",
+    "uuid": "^11.1.0"
   },
   "scripts": {
     "dev": "vite",

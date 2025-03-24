@@ -1,227 +1,394 @@
+// RequestForm.jsx
 import React, { useState, useEffect } from 'react';
-import {
+import { 
   Container,
+  Grid,
+  Stack,
   Typography,
   Paper,
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Box,
   Tabs,
   Tab,
   Button,
-  Alert
+  IconButton,
+  Divider,
+  Alert,
+  LinearProgress,
+  Chip,
+  useTheme
 } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import {
+  SendRounded,
+  HistoryRounded,
+  SettingsRounded,
+  CodeRounded,
+  ContentCopyRounded,
+  ReplayRounded,
+  ExpandMoreRounded
+} from '@mui/icons-material';
+import { styled, keyframes } from '@mui/material/styles';
+import axios from 'axios';
 import ApiInput from './Api/ApiInput';
 import MethodSelector from './Api/MethodSelector';
 import HeadersInput from './Api/HeadersInput';
 import BodyInput from './Api/BodyInput';
-import AssertionsInput from './Api/AssertionsInput';
 import ResponseDisplay from './Response/ResponseDisplay';
 import RequestHistory from './Response/RequestHistory';
-import axios from 'axios';
-import AuthInput from './Api/AuthInput';
 import QueryParamsInput from './Api/QueryParamsInput';
 import EnvironmentVariables from './Api/EnvironmentVariables';
+import AuthInput from './Api/AuthInput';
+
+const pulse = keyframes`
+  0% { opacity: 1; }
+  50% { opacity: 0.4; }
+  100% { opacity: 1; }
+`;
+
+const StyledPaper = styled(Paper)(({ theme }) => ({
+  borderRadius: '16px',
+  boxShadow: theme.shadows[2],
+  padding: theme.spacing(3),
+  border: `1px solid ${theme.palette.divider}`,
+  background: theme.palette.background.paper,
+  transition: 'all 0.3s ease',
+  height: '100%',
+  display: 'flex',
+  flexDirection: 'column'
+}));
+
+const AnimatedButton = styled(Button)({
+  transition: 'transform 0.2s, box-shadow 0.2s',
+  '&:hover': {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+  }
+});
 
 const RequestForm = () => {
+  const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
+  const [expandedSection, setExpandedSection] = useState(null);
   const [apiUrl, setApiUrl] = useState('');
   const [method, setMethod] = useState('GET');
   const [headers, setHeaders] = useState('{}');
-  const [body, setBody] = useState('{}');
+  const [body, setBody] = useState('');
   const [response, setResponse] = useState(null);
-  const [requestHistory, setRequestHistory] = useState([]);
-  const [assertions, setAssertions] = useState([]);
+  const [requestHistory, setRequestHistory] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('requestHistory') || '[]');
+    } catch {
+      return [];
+    }
+  });
   const [queryParams, setQueryParams] = useState('{}');
   const [auth, setAuth] = useState({ type: 'none', token: '' });
   const [envVars, setEnvVars] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [expandedSections, setExpandedSections] = useState({
+    request: true,
+    advanced: false
+  });
 
-  // Получение истории запросов
-  const fetchHistory = async () => {
+  useEffect(() => {
+    localStorage.setItem('requestHistory', JSON.stringify(requestHistory));
+  }, [requestHistory]);
+
+  const safeJSONParse = (str, defaultValue) => {
     try {
-      const { data } = await axios.get('/api/requests/history');
-      setRequestHistory(data);
+      return str ? JSON.parse(str) : defaultValue;
     } catch (error) {
-      console.error('Ошибка загрузки истории:', error);
+      console.error('JSON Parse Error:', { input: str, error });
+      return defaultValue;
     }
   };
 
-  useEffect(() => { fetchHistory(); }, []);
-
-  // Обработчик отправки формы
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const start = Date.now(); // Фиксируем время начала
-
+    setLoading(true);
+    setError(null);
+    
     try {
-      // Парсим все параметры
-      const parsedHeaders = JSON.parse(headers);
-      const parsedBody = JSON.parse(body);
-      const parsedQuery = typeof queryParams === 'string' 
-      ? JSON.parse(queryParams)
-      : queryParams;
+      const trimmedUrl = apiUrl.trim();
+      if (!trimmedUrl) throw new Error('Please enter a valid URL');
 
-      // Добавляем авторизацию в заголовки
-      if (auth.type === 'bearer') {
-        parsedHeaders['Authorization'] = `Bearer ${auth.token}`;
-      } else if (auth.type === 'basic') {
-        parsedHeaders['Authorization'] = `Basic ${btoa(auth.token)}`;
-      }
+      const parsedHeaders = safeJSONParse(headers, {});
+      const parsedQuery = safeJSONParse(queryParams, {});
+      const parsedBody = method !== 'GET' ? safeJSONParse(body, null) : undefined;
 
-      // Заменяем переменные окружения в URL
-      let finalUrl = apiUrl;
+      let finalUrl = trimmedUrl;
       envVars.forEach(({ key, value }) => {
-        finalUrl = finalUrl.replace(`{{${key}}}`, value);
+        finalUrl = finalUrl.replace(`{{${key}}}`, encodeURIComponent(value || ''));
       });
 
-      // Формируем URL с query-параметрами
-      const urlObj = new URL(apiUrl);
-      if (parsedQuery && typeof parsedQuery === 'object') {
-        Object.entries(parsedQuery).forEach(([key, value]) => {
-          if (key && value !== undefined) {
-            urlObj.searchParams.append(key, value);
-          }
-        });
+      const urlObj = new URL(finalUrl);
+      
+      Object.entries(parsedQuery).forEach(([key, value]) => {
+        if (value != null && value !== '') {
+          urlObj.searchParams.append(key, value);
+        }
+      });
+
+      const targetUrl = urlObj.toString();
+
+      if (auth.type === 'bearer') {
+        parsedHeaders.Authorization = `Bearer ${auth.token}`;
+      } else if (auth.type === 'basic') {
+        parsedHeaders.Authorization = `Basic ${btoa(auth.token)}`;
       }
 
-      // Отправляем запрос
+      const startTime = Date.now();
       const result = await axios.post('/api/requests/makeRequest', {
-        method: method.toUpperCase(),
-        url: urlObj.toString(),
+        method: method.toLowerCase(),
+        url: targetUrl,
         headers: parsedHeaders,
-        data: method.toUpperCase() === 'GET' ? undefined : parsedBody
+        data: parsedBody,
+        validateStatus: () => true
       });
 
-      // Обновляем состояние ответа
-      setResponse({
-        data: result.data.data,
-        status: result.data.status,
-        headers: result.data.headers,
-        latency: result.data.latency,
+      const newRequest = {
+        id: Date.now(),
+        method,
+        url: trimmedUrl,
+        headers: parsedHeaders,
+        body: parsedBody,
+        query: parsedQuery,
+        response: {
+          status: result.status,
+          data: result.data,
+          headers: result.headers,
+          latency: Date.now() - startTime
+        },
         timestamp: new Date().toISOString()
-      });
+      };
 
-      await fetchHistory();
+      setRequestHistory(prev => [newRequest, ...prev.slice(0, 49)]);
+      setResponse(newRequest.response);
 
     } catch (error) {
-      console.error('Ошибка запроса:', error);
-      setResponse({
-        error: error.response?.data?.message || error.message,
-        status: error.response?.status,
-        latency: Date.now() - start,
-        data: error.response?.data
-      });
+      setError(error.message);
+      console.error('Request Error:', error);
+    } finally {
+      setLoading(false);
     }
   };
-
-
-
-
-  // Обработчик выбора из истории
-  const handleReuseRequest = (request) => {
-    try {
-      const urlObj = new URL(request.url);
-      const baseUrl = `${urlObj.origin}${urlObj.pathname}`;
-      const queryParamsFromUrl = Object.fromEntries(urlObj.searchParams.entries());
-
-      let responseBody = {};
-      if (request.response?.body) {
-        // Проверяем тип данных перед парсингом
-        responseBody = typeof request.response.body === 'string' 
-          ? JSON.parse(request.response.body) 
-          : request.response.body;
-      }
-  
-      setApiUrl(baseUrl);
-      setMethod(request.method);
-      setQueryParams(JSON.stringify(queryParamsFromUrl, null, 2));
-  
-      const headersValue = typeof request.headers === 'string' 
-        ? request.headers 
-        : JSON.stringify(request.headers || {}, null, 2);
-      setHeaders(headersValue);
-  
-      const bodyValue = typeof request.body === 'string'
-        ? request.body
-        : JSON.stringify(request.body || {}, null, 2);
-      setBody(bodyValue);
-  
-      setResponse({
-        data: responseBody,
-        status: request.response?.status || 200,
-        headers: request.response?.headers || {},
-        latency: request.response?.latency || 0
-      });
-  
-      setTimeout(() => setActiveTab(0), 0);
-    } catch (error) {
-      console.error('Ошибка восстановления запроса:', error);
-      setResponse({
-        error: 'Ошибка загрузки данных из истории',
-        data: {}
-      });
-    }
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
   };
+
+  const SectionHeader = ({ title, icon, sectionKey }) => (
+    <Stack 
+      direction="row" 
+      alignItems="center" 
+      spacing={1} 
+      onClick={() => toggleSection(sectionKey)}
+      sx={{
+        cursor: 'pointer',
+        p: 1,
+        borderRadius: '8px',
+        '&:hover': { background: theme.palette.action.hover }
+      }}
+    >
+      <IconButton size="small">
+        {icon}
+      </IconButton>
+      <Typography variant="subtitle1" fontWeight={600}>{title}</Typography>
+      <ExpandMoreRounded sx={{ 
+        transform: expandedSections[sectionKey] ? 'rotate(180deg)' : 'none',
+        transition: 'transform 0.2s',
+        ml: 'auto'
+      }}/>
+    </Stack>
+  );
+
+
   return (
-    <Container maxWidth="md" sx={{ mt: 4 }}>
-      <Tabs value={activeTab} onChange={(_, newVal) => setActiveTab(newVal)}>
-        <Tab label="Новый запрос" />
-        <Tab label="История" />
-        <Tab label="Настройки" />
-      </Tabs>
-
-      {activeTab === 0 ? (
-        <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
-          <ApiInput value={apiUrl} onChange={setApiUrl} />
-          <MethodSelector value={method} onChange={setMethod} />
-
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>Дополнительные параметры</Typography>
-            </AccordionSummary>
-            <AccordionDetails>
-              <AuthInput onChange={setAuth} />
-              <HeadersInput value={headers} onChange={setHeaders} />
-              <QueryParamsInput onChange={setQueryParams} />
-              <BodyInput value={body} onChange={setBody} />
-              <EnvironmentVariables onChange={setEnvVars} />
-              <AssertionsInput onChange={setAssertions} />
-            </AccordionDetails>
-          </Accordion>
-
-          <Button 
-            fullWidth 
-            variant="contained" 
-            sx={{ mt: 2 }}
-            onClick={handleSubmit}
-          >
-            Отправить запрос
-          </Button>
-
-          {response && (
-            <Box sx={{ mt: 2 }}>
-              <ResponseDisplay 
-                data={response.data}
-                status={response.status}
-                headers={response.headers}
-                latency={response.latency}
-                error={response.error}
+    <Container maxWidth="xl" sx={{ py: 4, height: '100vh' }}>
+      <Grid container spacing={3} sx={{ height: '100%' }}>
+        {/* Левая панель - Конфигурация */}
+        <Grid item xs={12} md={5} lg={5} sx={{ height: '100%' }}>
+          <StyledPaper>
+            <Tabs 
+              value={activeTab} 
+              onChange={(_, v) => setActiveTab(v)}
+              sx={{ 
+                mb: 2,
+                '& .MuiTabs-indicator': { height: 2 }
+              }}
+            >
+              <Tab 
+                label="Request" 
+                icon={<CodeRounded fontSize="small" />} 
+                sx={{ minHeight: 48 }}
               />
-            </Box>
-          )}
-        </Paper>
-      ) : activeTab === 1 ? (
-        <RequestHistory 
-          requests={requestHistory}
-          onReuseRequest={handleReuseRequest}
-        />
-      ) : (
-        <Paper elevation={3} sx={{ p: 3 }}>
-          <EnvironmentVariables onChange={setEnvVars} />
-        </Paper>
-      )}
+              <Tab 
+                label="History" 
+                icon={<HistoryRounded fontSize="small" />} 
+                sx={{ minHeight: 48 }}
+              />
+              <Tab 
+                label="Settings" 
+                icon={<SettingsRounded fontSize="small" />} 
+                sx={{ minHeight: 48 }}
+              />
+            </Tabs>
+
+            {activeTab === 0 ? (
+              <Stack spacing={3} sx={{ flex: 1 }}>
+                <SectionHeader
+                  title="Request Setup"
+                  icon={<SendRounded />}
+                  sectionKey="request"
+                />
+                
+                {expandedSections.request && (
+                  <Stack spacing={2}>
+                    <Grid container spacing={1} alignItems="center">
+                      <Grid item xs={3}>
+                        <MethodSelector 
+                          value={method} 
+                          onChange={setMethod} 
+                          fullWidth 
+                        />
+                      </Grid>
+                      <Grid item xs={9}>
+                        <ApiInput
+                          value={apiUrl}
+                          onChange={setApiUrl}
+                          onBlur={() => setApiUrl(apiUrl.trim())}
+                        />
+                      </Grid>
+                    </Grid>
+
+                    <Divider sx={{ my: 1 }} />
+
+                    <SectionHeader
+                      title="Advanced Options"
+                      icon={<SettingsRounded />}
+                      sectionKey="advanced"
+                    />
+
+                    {expandedSections.advanced && (
+                      <Stack spacing={2}>
+                        <AuthInput 
+                          value={auth} 
+                          onChange={setAuth} 
+                          compact 
+                        />
+                        <QueryParamsInput 
+                          value={queryParams} 
+                          onChange={setQueryParams} 
+                        />
+                        <HeadersInput 
+                          value={headers} 
+                          onChange={setHeaders} 
+                        />
+                        <BodyInput 
+                          value={body} 
+                          onChange={setBody} 
+                          method={method} 
+                        />
+                      </Stack>
+                    )}
+                  </Stack>
+                )}
+
+                <AnimatedButton
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  startIcon={<SendRounded />}
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  sx={{
+                    mt: 'auto',
+                    py: 1.5,
+                    borderRadius: '12px',
+                    bgcolor: 'primary.light',
+                    '&:disabled': { animation: `${pulse} 1.5s infinite` }
+                  }}
+                >
+                  {loading ? 'Processing...' : 'Execute Request'}
+                </AnimatedButton>
+              </Stack>
+            ) : activeTab === 1 ? (
+              <RequestHistory 
+                requests={requestHistory}
+                onReuseRequest={(request) => {
+                  setApiUrl(request.url);
+                  setMethod(request.method);
+                  setHeaders(JSON.stringify(request.headers, null, 2));
+                  setBody(JSON.stringify(request.body || null, null, 2));
+                  setQueryParams(JSON.stringify(request.query, null, 2));
+                  setResponse(request.response);
+                  setActiveTab(0);
+                }}
+              />
+            ) : (
+              <EnvironmentVariables 
+                variables={envVars} 
+                onChange={setEnvVars} 
+              />
+            )}
+          </StyledPaper>
+        </Grid>
+
+        {/* Правая панель - Ответ */}
+        <Grid item xs={12} md={7} lg={7} sx={{ height: '100%' }}>
+          <StyledPaper sx={{ p: 0 }}>
+            <Stack 
+              direction="row" 
+              alignItems="center" 
+              spacing={1} 
+              sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+            >
+              <Typography variant="subtitle1" fontWeight={600}>Response</Typography>
+              {response?.status && (
+                <Chip 
+                  label={`${response.status} • ${response.latency}ms`} 
+                  size="small"
+                  color={
+                    response.status >= 400 ? 'error' : 
+                    response.status >= 200 ? 'success' : 'info'
+                  }
+                />
+              )}
+              <IconButton 
+                size="small" 
+                sx={{ ml: 'auto' }}
+                onClick={() => navigator.clipboard.writeText(JSON.stringify(response))}
+              >
+                <ContentCopyRounded fontSize="small" />
+              </IconButton>
+            </Stack>
+
+            {loading ? (
+              <LinearProgress sx={{ height: 2 }} />
+            ) : response ? (
+              <ResponseDisplay 
+                data={response.data} 
+                headers={response.headers}
+                sx={{ height: 'calc(100% - 48px)', overflow: 'auto', p: 2 }}
+              />
+            ) : (
+              <Stack 
+                spacing={2} 
+                sx={{ 
+                  height: '100%', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  color: 'text.secondary'
+                }}
+              >
+                <ReplayRounded sx={{ fontSize: 48, opacity: 0.5 }} />
+                <Typography variant="body2">Send a request to view response</Typography>
+              </Stack>
+            )}
+          </StyledPaper>
+        </Grid>
+      </Grid>
     </Container>
   );
 };

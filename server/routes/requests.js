@@ -110,4 +110,14 @@ router.get('/history', async (req, res) => {
   }
 });
 
+router.get('/proxy/*', async (req, res) => {
+  try {
+    const targetUrl = req.url.replace('/proxy/', '');
+    const response = await axios.get(`https://${targetUrl}`);
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;
