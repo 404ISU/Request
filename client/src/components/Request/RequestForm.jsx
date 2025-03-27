@@ -72,13 +72,8 @@ const RequestForm = () => {
   const [headers, setHeaders] = useState('{}');
   const [body, setBody] = useState('');
   const [response, setResponse] = useState(null);
-  const [requestHistory, setRequestHistory] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('requestHistory') || '[]');
-    } catch {
-      return [];
-    }
-  });
+  const [requestHistory, setRequestHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [queryParams, setQueryParams] = useState('{}');
   const [auth, setAuth] = useState({ type: 'none', token: '' });
   const [envVars, setEnvVars] = useState([]);
@@ -89,9 +84,59 @@ const RequestForm = () => {
     advanced: false
   });
 
-  useEffect(() => {
-    localStorage.setItem('requestHistory', JSON.stringify(requestHistory));
-  }, [requestHistory]);
+   // Добавляем эффект для загрузки истории при монтировании
+   useEffect(() => {
+    fetchRequestHistory();
+  }, []);
+
+    // Функция для загрузки истории с сервера
+    const fetchRequestHistory = async () => {
+      setLoadingHistory(true);
+      try {
+        const response = await axios.get('/api/requests/history');
+        const parsedRequests = response.data.map(parseServerRequest);
+        setRequestHistory(parsedRequests);
+      } catch (error) {
+        console.error('Error fetching history:', error);
+        setError('Failed to load request history');
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
+
+     // Парсер для преобразования данных с сервера
+  const parseServerRequest = (serverRequest) => ({
+    id: serverRequest._id,
+    method: serverRequest.method,
+    url: serverRequest.url,
+    headers: serverRequest.headers,
+    body: serverRequest.body,
+    query: parseQueryString(serverRequest.queryParams),
+    response: {
+      status: serverRequest.response?.status,
+      data: tryParseJSON(serverRequest.response?.body),
+      headers: serverRequest.response?.headers,
+      latency: serverRequest.response?.latency
+    },
+    timestamp: serverRequest.timestamp
+  });
+
+    // Вспомогательные функции
+    const parseQueryString = (queryString) => {
+      const params = new URLSearchParams(queryString);
+      const result = {};
+      params.forEach((value, key) => result[key] = value);
+      return result;
+    };
+
+    const tryParseJSON = (str) => {
+      try {
+        return JSON.parse(str);
+      } catch {
+        return str || null;
+      }
+    };
+  
 
   const safeJSONParse = (str, defaultValue) => {
     try {
@@ -160,8 +205,9 @@ const RequestForm = () => {
         },
         timestamp: new Date().toISOString()
       };
+      await fetchRequestHistory();
 
-      setRequestHistory(prev => [newRequest, ...prev.slice(0, 49)]);
+
       setResponse(newRequest.response);
 
     } catch (error) {

@@ -94,9 +94,10 @@ router.get('/history', async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const requests = await Request.find({ userId: decoded.id })
-      .populate('response')
-      .sort({ timestamp: -1 })
-      .lean();
+    .populate('response')
+    .sort({ timestamp: -1 })
+    .limit(50) // Добавляем лимит
+    .lean();
 
     requests.forEach(req => {
       if (req.response?.body && typeof req.response.body !== 'string') {
@@ -105,16 +106,6 @@ router.get('/history', async (req, res) => {
     });
 
     res.status(200).json(requests);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-router.get('/proxy/*', async (req, res) => {
-  try {
-    const targetUrl = req.url.replace('/proxy/', '');
-    const response = await axios.get(`https://${targetUrl}`);
-    res.json(response.data);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
