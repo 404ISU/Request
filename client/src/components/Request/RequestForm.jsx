@@ -1,5 +1,5 @@
 // RequestForm.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, } from 'react';
 import { 
   Container,
   Grid,
@@ -14,7 +14,8 @@ import {
   Alert,
   LinearProgress,
   Chip,
-  useTheme
+  useTheme,
+  
 } from '@mui/material';
 import {
   SendRounded,
@@ -83,6 +84,7 @@ const RequestForm = () => {
     request: true,
     advanced: false
   });
+  const [suggestions, setSuggestions] = useState([]);
 
    // Добавляем эффект для загрузки истории при монтировании
    useEffect(() => {
@@ -250,6 +252,15 @@ const RequestForm = () => {
   );
 
 
+    
+  // Получаем историю URL для автодополнения
+  const urlSuggestions = React.useMemo(
+    () => [...new Set(requestHistory
+      .map(req => req?.url)
+      .filter(Boolean))], 
+    [requestHistory]
+  );
+
   return (
     <Container maxWidth="xl" sx={{ py: 4, height: '100vh' }}>
       <Grid container spacing={3} sx={{ height: '100%' }}>
@@ -300,11 +311,12 @@ const RequestForm = () => {
                         />
                       </Grid>
                       <Grid item xs={9}>
-                        <ApiInput
-                          value={apiUrl}
-                          onChange={setApiUrl}
-                          onBlur={() => setApiUrl(apiUrl.trim())}
-                        />
+                      <ApiInput
+        value={apiUrl}
+        onChange={setApiUrl}
+        onBlur={() => setApiUrl(apiUrl.trim())}
+        suggestions={urlSuggestions} // Передаем обработанный массив
+      />
                       </Grid>
                     </Grid>
 

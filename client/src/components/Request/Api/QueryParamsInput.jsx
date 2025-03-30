@@ -12,6 +12,13 @@ const QueryParamsInput = ({ value, onChange }) => {
     value: ''
   }]);
 
+  const parseValue = (value, envVariables) => {
+    return Object.entries(envVariables).reduce(
+      (acc, [key, val]) => acc.replace(new RegExp(key, 'g'), val),
+      value
+    );
+  };
+
   const initialParams = useMemo(() => {
     try {
       const parsedValue = JSON.parse(value || '{}');
@@ -54,7 +61,10 @@ const QueryParamsInput = ({ value, onChange }) => {
           return acc;
         }, {});
 
-      onChange(JSON.stringify(filteredParams, null, 2));
+        onChange(JSON.stringify(
+          Object.fromEntries(
+            params.map(p => [p.key, parseValue(p.value)])
+        )));
     }
   }, [params, onChange]);
 

@@ -17,7 +17,9 @@ const MethodSelector = ({ value, onChange }) => {
     { value: 'PUT', color: 'warning' },
     { value: 'DELETE', color: 'error' },
     { value: 'PATCH', color: 'info' },
-    { value: 'HEAD', color: 'secondary' }
+    { value: 'HEAD', color: 'secondary' },
+    { value: 'OPTIONS', color: 'inherit' },
+    { value: 'TRACE', color: 'default' }
   ];
 
   return (

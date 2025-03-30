@@ -1,60 +1,77 @@
-import React, { useState } from 'react';
-import { TextField, Button, Box, Typography } from '@mui/material';
+import React, { useState } from "react";
+import { TextField, Button, Box, Typography } from "@mui/material";
 
 // Генератор уникальных ID
 let envIdCounter = 0;
-const generateEnvId = () => 
-  `env-${Date.now()}-${envIdCounter++}-${Math.random().toString(36).slice(2, 7)}`;
+const generateEnvId = () =>
+  `env-${Date.now()}-${envIdCounter++}-${Math.random()
+    .toString(36)
+    .slice(2, 7)}`;
 
 const EnvironmentVariables = ({ onChange }) => {
-  const [variables, setVariables] = useState([{
-    id: generateEnvId(),
-    key: '',
-    value: ''
-  }]);
+  const [variables, setVariables] = useState([
+    {
+      id: generateEnvId(),
+      key: "",
+      value: "",
+    },
+  ]);
+  const [environments, setEnvironments] = useState({
+    dev: [],
+    staging: [],
+    prod: [],
+  });
+  const [currentEnv, setCurrentEnv] = useState("dev");
 
   const handleVariableChange = (id, field, value) => {
-    const newVariables = variables.map(varItem => 
+    const newVariables = variables.map((varItem) =>
       varItem.id === id ? { ...varItem, [field]: value } : varItem
     );
     setVariables(newVariables);
-    onChange(newVariables.filter(v => v.key.trim() && v.value.trim()));
+    onChange(newVariables.filter((v) => v.key.trim() && v.value.trim()));
   };
 
   const addVariable = () => {
-    setVariables([...variables, {
-      id: generateEnvId(),
-      key: '',
-      value: ''
-    }]);
+    setVariables([
+      ...variables,
+      {
+        id: generateEnvId(),
+        key: "",
+        value: "",
+      },
+    ]);
   };
 
   return (
-    <Box sx={{ 
-      border: '1px solid', 
-      borderColor: 'divider', 
-      borderRadius: 2, 
-      p: 2,
-      mb: 2
-    }}>
+    <Box
+      sx={{
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 2,
+        p: 2,
+        mb: 2,
+      }}
+    >
       <Typography variant="subtitle1" gutterBottom>
         Переменные окружения
       </Typography>
 
       {variables.map((variable, index) => (
-        <Box 
+        <Box
           key={variable.id}
-          sx={{ 
-            display: 'flex', 
-            gap: 1, 
+          sx={{
+            display: "flex",
+            gap: 1,
             mb: 1,
-            alignItems: 'center'
+            alignItems: "center",
           }}
         >
           <TextField
             label="Ключ"
             value={variable.key}
-            onChange={(e) => handleVariableChange(variable.id, 'key', e.target.value)}
+            onChange={(e) =>
+              handleVariableChange(variable.id, "key", e.target.value)
+            }
             fullWidth
             size="small"
           />
@@ -62,14 +79,29 @@ const EnvironmentVariables = ({ onChange }) => {
           <TextField
             label="Значение"
             value={variable.value}
-            onChange={(e) => handleVariableChange(variable.id, 'value', e.target.value)}
+            onChange={(e) =>
+              handleVariableChange(variable.id, "value", e.target.value)
+            }
             fullWidth
             size="small"
           />
+          <Box sx={{ mb: 2 }}>
+            {Object.keys(environments).map((env) => (
+              <Button
+                key={env}
+                variant={currentEnv === env ? "contained" : "outlined"}
+                onClick={() => setCurrentEnv(env)}
+              >
+                {env}
+              </Button>
+            ))}
+          </Box>
 
           {index > 0 && (
-            <Button 
-              onClick={() => setVariables(vars => vars.filter(v => v.id !== variable.id))}
+            <Button
+              onClick={() =>
+                setVariables((vars) => vars.filter((v) => v.id !== variable.id))
+              }
               color="error"
               size="small"
               sx={{ minWidth: 40 }}
@@ -80,9 +112,9 @@ const EnvironmentVariables = ({ onChange }) => {
         </Box>
       ))}
 
-      <Button 
+      <Button
         onClick={addVariable}
-        variant="outlined" 
+        variant="outlined"
         size="small"
         fullWidth
         sx={{ mt: 1 }}
