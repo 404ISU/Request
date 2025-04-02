@@ -1,7 +1,7 @@
-import React, { memo, Suspense, useState, useCallback } from "react";
+import React, { memo, Suspense, useState, useCallback, useMemo, useEffect, useRef } from "react";
+import PropTypes from "prop-types";
 import {
   Paper,
-  Typography,
   Box,
   Tabs,
   Tab,
@@ -10,98 +10,176 @@ import {
   IconButton,
   Tooltip,
   useTheme,
-  styled,
-  TextField
+  TextField,
+  InputAdornment
 } from "@mui/material";
-import {
-  Code,
-  ContentCopy,
-  Http,
-  Timer,
-  CheckCircleOutline,
-  ErrorOutline,
-} from "@mui/icons-material";
+import { Code, ContentCopy, Http, CheckCircleOutline, Search, Clear } from "@mui/icons-material";
 
 const Editor = React.lazy(() => import("@monaco-editor/react"));
 
-const ResponseDisplay = memo(({ data, status, headers, latency }) => {
+const ResponseDisplay = memo(({ data, headers, latency, contentType }) => {
   const theme = useTheme();
   const [viewMode, setViewMode] = useState("body");
   const [copied, setCopied] = useState(false);
-  const [formattedContent, setFormattedContent] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const editorRef = useRef(null);
+  const decorationsRef = useRef([]);
 
-  const highlightMatch = (content) => {
-    if (!searchTerm) return content;
+  // Определение типа контента
+  const detectedContentType = useMemo(() => {
+    if (contentType?.includes("application/json")) return "json";
+    if (contentType?.includes("application/xml")) return "xml";
+    if (contentType?.includes("text/html")) return "html";
+    return "text";
+  }, [contentType]);
 
-    const regex = new RegExp(`(${searchTerm})`, "gi");
-    return content
-      .split(regex)
-      .map((part, i) => (i % 2 ? <mark>{part}</mark> : part));
-  };
-
-  const formatJSON = useCallback((input) => {
+  // Форматирование содержимого
+  const formattedContent = useMemo(() => {
     try {
+      const input = viewMode === "body" ? data : headers;
+      
       if (typeof input === "string") {
-        input = JSON.parse(input);
+        if (detectedContentType === "json") {
+          return JSON.stringify(JSON.parse(input), null, 2);
+        }
+        return input;
       }
       return JSON.stringify(input, null, 2);
     } catch (error) {
-      try {
-        return JSON.stringify(JSON.parse(JSON.stringify(input)), null, 2);
-      } catch {
-        return typeof input === "string" ? input : String(input);
-      }
+      return String(input);
+    }
+  }, [data, headers, viewMode, detectedContentType]);
+
+  // Очистка подсветки
+  const clearDecorations = useCallback(() => {
+    if (editorRef.current) {
+      decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, []);
     }
   }, []);
 
+  // Поиск и подсветка совпадений
+  const highlightMatches = useCallback((term) => {
+    if (!editorRef.current || !term) {
+      clearDecorations();
+      return;
+    }
+
+    const model = editorRef.current.getModel();
+    const matches = model.findMatches(term, true, false, true, null, true);
+    
+    decorationsRef.current = model.deltaDecorations(
+      decorationsRef.current,
+      matches.map(match => ({
+        range: match.range,
+        options: {
+          inlineClassName: 'search-match',
+          stickiness: 1
+        }
+      }))
+    );
+  }, [clearDecorations]);
+
+  // Обработчик изменения поискового запроса
+  useEffect(() => {
+    const handler = setTimeout(() => highlightMatches(searchTerm), 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm, highlightMatches]);
+
+  // Обновление при изменении контента
+  useEffect(() => {
+    highlightMatches(searchTerm);
+  }, [formattedContent, highlightMatches, searchTerm]);
+
+  // Инициализация редактора
   const handleEditorMount = useCallback((editor) => {
-    setTimeout(() => {
-      editor.getAction("editor.action.formatDocument").run();
-    }, 100);
+    editorRef.current = editor;
+    editor.getAction("editor.action.formatDocument").run();
   }, []);
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(formattedContent);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  // Копирование содержимого
+  const handleCopy = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(formattedContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (error) {
+      console.error("Ошибка копирования:", error);
+    }
+  }, [formattedContent]);
+
+  // Параметры редактора
+  const editorOptions = useMemo(() => ({
+    readOnly: true,
+    minimap: { enabled: false },
+    lineNumbers: "off",
+    scrollBeyondLastLine: false,
+    automaticLayout: true,
+    fontSize: 14,
+    fontFamily: "Fira Code, Menlo, Monaco, Consolas, monospace",
+    renderValidationDecorations: "off",
+    occurrencesHighlight: false,
+    find: {
+      addFindWidget: false // Отключаем стандартный поиск
+    }
+  }), []);
 
   return (
-    <Paper
-      elevation={3}
-      sx={{
-        mt: 2,
-        p: 2,
-        borderRadius: "8px",
-        border: `1px solid ${theme.palette.divider}`,
-        backgroundColor: theme.palette.background.paper,
-      }}
-    >
-      <Box display="flex" alignItems="center" gap={2} mb={2}>
-        <Chip
-          label={`Status: ${status}`}
-          color={status >= 400 ? "error" : "success"}
-          icon={status >= 400 ? <ErrorOutline /> : <CheckCircleOutline />}
-        />
-        <Typography variant="body2" color="text.secondary">
-          <Timer fontSize="small" sx={{ verticalAlign: "middle", mr: 0.5 }} />
-          {latency}ms
-        </Typography>
-
-        
+    <Paper elevation={3} sx={{
+      mt: 2,
+      p: 2,
+      borderRadius: "8px",
+      border: `1px solid ${theme.palette.divider}`,
+      backgroundColor: theme.palette.background.paper,
+    }}>
+      <Box display="flex" gap={2} mb={2} alignItems="center">
         <TextField
+          fullWidth
+          variant="outlined"
+          size="small"
           label="Поиск в ответе"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          sx={{ mb: 2 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <Search fontSize="small" />
+              </InputAdornment>
+            ),
+            endAdornment: searchTerm && (
+              <InputAdornment position="end">
+                <IconButton
+                  size="small"
+                  onClick={() => {
+                    setSearchTerm("");
+                    clearDecorations();
+                  }}
+                >
+                  <Clear fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            )
+          }}
+          sx={{ flex: 1 }}
         />
 
-        <Tooltip title={copied ? "Copied!" : "Copy response"}>
-          <IconButton onClick={handleCopy} size="small" sx={{ ml: "auto" }}>
-            {copied ? <CheckCircleOutline color="success" /> : <ContentCopy />}
+        <Tooltip title={copied ? "Скопировано!" : "Копировать в буфер"}>
+          <IconButton onClick={handleCopy} size="small">
+            {copied ? (
+              <CheckCircleOutline color="success" fontSize="small" />
+            ) : (
+              <ContentCopy fontSize="small" />
+            )}
           </IconButton>
         </Tooltip>
+
+        {latency && (
+          <Chip
+            label={`${latency}ms`}
+            size="small"
+            variant="outlined"
+            sx={{ ml: "auto" }}
+          />
+        )}
       </Box>
 
       <Tabs
@@ -110,13 +188,13 @@ const ResponseDisplay = memo(({ data, status, headers, latency }) => {
         sx={{ borderBottom: 1, borderColor: "divider" }}
       >
         <Tab
-          label="Body"
+          label="Тело"
           value="body"
           icon={<Code fontSize="small" />}
           sx={{ minHeight: 48, textTransform: "none" }}
         />
         <Tab
-          label="Headers"
+          label="Заголовки"
           value="headers"
           icon={<Http fontSize="small" />}
           sx={{ minHeight: 48, textTransform: "none" }}
@@ -124,43 +202,49 @@ const ResponseDisplay = memo(({ data, status, headers, latency }) => {
       </Tabs>
 
       <Box sx={{ height: "400px", mt: 2, position: "relative" }}>
-        <Suspense
-          fallback={
-            <Box
-              height="100%"
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-            >
-              <CircularProgress size={32} thickness={4} />
-            </Box>
-          }
-        >
+        <Suspense fallback={
+          <Box height="100%" display="flex" alignItems="center" justifyContent="center">
+            <CircularProgress size={32} thickness={4} />
+          </Box>
+        }>
           <Editor
             height="100%"
-            language="json"
-            value={formatJSON(viewMode === "body" ? data : headers)}
+            language={detectedContentType}
+            value={formattedContent}
             theme={theme.palette.mode === "dark" ? "vs-dark" : "light"}
             onMount={handleEditorMount}
-            options={{
-              readOnly: true,
-              minimap: { enabled: false },
-              lineNumbers: "off",
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              formatOnPaste: true,
-              formatOnType: true,
-              renderValidationDecorations: "off",
-              quickSuggestions: false,
-              suggestOnTriggerCharacters: false,
-              fontSize: 14,
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-            }}
+            options={editorOptions}
           />
         </Suspense>
       </Box>
+
+      <style>
+        {`
+          .search-match {
+            background-color: ${theme.palette.warning.light}80;
+            border: 1px solid ${theme.palette.warning.main};
+            border-radius: 2px;
+          }
+          .monaco-editor .find-widget {
+            display: none !important;
+          }
+        `}
+      </style>
     </Paper>
   );
 });
+
+ResponseDisplay.propTypes = {
+  data: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
+  headers: PropTypes.object,
+  latency: PropTypes.number,
+  contentType: PropTypes.string
+};
+
+ResponseDisplay.defaultProps = {
+  data: {},
+  headers: {},
+  contentType: "application/json"
+};
 
 export default ResponseDisplay;

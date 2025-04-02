@@ -195,9 +195,10 @@ const Navbar = () => {
             Регистрация
           </MenuItem>
         ]}
-        <MenuItem component={Link} to="/documentation">
-          <AssignmentInd sx={{ mr: 2 }} /> Документация
+        <MenuItem component={Link} to="/request">
+          <AssignmentInd sx={{ mr: 2 }} /> Запрос
         </MenuItem>
+
       </Menu>
     </>
   );

@@ -99,15 +99,24 @@ router.get('/history', async (req, res) => {
     .limit(50) // Добавляем лимит
     .lean();
 
+
+
     requests.forEach(req => {
       if (req.response?.body && typeof req.response.body !== 'string') {
         req.response.body = JSON.stringify(req.response.body);
       }
     });
 
-    res.status(200).json(requests);
+    res.status(200).json(requests.map(r => ({
+      ...r,
+      response: r.response || null
+    })));
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Ошибка получения истории:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error',
+      message: error.message 
+    });
   }
 });
 

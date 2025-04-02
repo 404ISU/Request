@@ -136,7 +136,7 @@ const Home = () => {
             <Card sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
               <CardMedia
                 component="img"
-                height="150"
+                height="290"
                 image="https://i.pinimg.com/736x/fa/ef/15/faef15cc304d627ef1539e27df580094.jpg"
                 alt="Step 1"
                 sx={{ mb: 2 }}
@@ -156,7 +156,8 @@ const Home = () => {
             <Card sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
               <CardMedia
                 component="img"
-                height="150"
+                position="center"
+                height="290"
                 image="https://i.pinimg.com/736x/5a/e3/79/5ae37932839d85465cbadd761433b0cf.jpg"
                 alt="Step 2"
                 sx={{ mb: 2 }}
@@ -176,7 +177,7 @@ const Home = () => {
             <Card sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
               <CardMedia
                 component="img"
-                height="150"
+                height="290"
                 image="https://i.pinimg.com/736x/63/38/d1/6338d105451b4556a25dbbc49e89b784.jpg"
                 alt="Step 3"
                 sx={{ mb: 2 }}
@@ -196,7 +197,7 @@ const Home = () => {
             <Card sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
               <CardMedia
                 component="img"
-                height="150"
+                height="290"
                 image="https://i.pinimg.com/736x/5f/92/ad/5f92ad60821ede3b45c1641865547223.jpg"
                 alt="Step 4"
                 sx={{ mb: 2 }}
@@ -224,7 +225,7 @@ const Home = () => {
             <Card sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
               <CardMedia
                 component="img"
-                height="100"
+                height="390"
                 image="https://cdn3.mbschool.ru/mbschool/articles/chesnokov/1.png"
                 alt="Easy to Use"
                 sx={{ mb: 2 }}
@@ -244,7 +245,7 @@ const Home = () => {
             <Card sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
               <CardMedia
                 component="img"
-                height="100"
+                height="390"
                 image="https://i.pinimg.com/736x/0e/c2/94/0ec294ac6fc6e583ad648f9aefd01666.jpg"
                 alt="Powerful Features"
                 sx={{ mb: 2 }}
@@ -264,7 +265,7 @@ const Home = () => {
             <Card sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
               <CardMedia
                 component="img"
-                height="100"
+                height="390"
                 image="https://i.pinimg.com/736x/e0/e2/be/e0e2bece87c7fd60aebed2c94dc3a761.jpg"
                 alt="Security"
                 sx={{ mb: 2 }}
@@ -284,7 +285,7 @@ const Home = () => {
             <Card sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', p: 2 }}>
               <CardMedia
                 component="img"
-                height="100"
+                height="390"
                 image="https://i.pinimg.com/736x/5a/c2/7e/5ac27e8e0d2c75dbb4edcfad3a2b3ba2.jpg"
                 alt="Free Access"
                 sx={{ mb: 2 }}

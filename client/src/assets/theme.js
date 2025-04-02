@@ -125,7 +125,7 @@ const theme = createTheme({
           transition: 'all 0.2s',
           '&:hover': {
             transform: 'scale(1.1)',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            backgroundColor: '#6366f1',
           },
         },
       },

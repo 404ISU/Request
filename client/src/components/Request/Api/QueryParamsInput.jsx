@@ -5,18 +5,23 @@ import PropTypes from 'prop-types';
 let idCounter = 0;
 const generateId = () => `param-${Date.now()}-${idCounter++}-${Math.random().toString(36).slice(2, 7)}`;
 
-const QueryParamsInput = ({ value, onChange }) => {
+const QueryParamsInput = ({ value, onChange, envVariables = {} }) => { // Добавляем envVariables в пропсы
   const [params, setParams] = useState([{
     id: generateId(),
     key: '',
     value: ''
   }]);
 
-  const parseValue = (value, envVariables) => {
-    return Object.entries(envVariables).reduce(
-      (acc, [key, val]) => acc.replace(new RegExp(key, 'g'), val),
-      value
-    );
+  const parseValue = (value) => {
+    try {
+      return Object.entries(envVariables).reduce(
+        (acc, [key, val]) => acc.replace(new RegExp(`{{${key}}}`, 'g'), val),
+        value
+      );
+    } catch (error) {
+      console.error('Error parsing value:', error);
+      return value;
+    }
   };
 
   const initialParams = useMemo(() => {
@@ -28,7 +33,7 @@ const QueryParamsInput = ({ value, onChange }) => {
         value: String(val)
       }));
     } catch (error) {
-      console.error('Ошибка парсинга параметров:', error);
+      console.error('Parse error:', error);
       return [{ id: generateId(), key: '', value: '' }];
     }
   }, [value]);
@@ -54,17 +59,19 @@ const QueryParamsInput = ({ value, onChange }) => {
 
   useEffect(() => {
     if (typeof onChange === 'function') {
-      const filteredParams = params
-        .filter(p => p.key.trim() && p.value.trim())
-        .reduce((acc, { key, value }) => {
-          acc[key] = isNaN(value) ? value : Number(value);
+      try {
+        const result = params.reduce((acc, { key, value }) => {
+          if (key.trim() && value.trim()) {
+            acc[key] = parseValue(value);
+          }
           return acc;
         }, {});
 
-        onChange(JSON.stringify(
-          Object.fromEntries(
-            params.map(p => [p.key, parseValue(p.value)])
-        )));
+        onChange(JSON.stringify(result));
+      } catch (error) {
+        console.error('Error generating query params:', error);
+        onChange('{}');
+      }
     }
   }, [params, onChange]);
 
@@ -134,7 +141,8 @@ const QueryParamsInput = ({ value, onChange }) => {
 
 QueryParamsInput.propTypes = {
   onChange: PropTypes.func.isRequired,
-  value: PropTypes.string.isRequired
+  value: PropTypes.string.isRequired,
+  envVariables: PropTypes.object
 };
 
 export default QueryParamsInput;

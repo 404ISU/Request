@@ -1,5 +1,4 @@
-// RequestForm.jsx
-import React, { useState, useEffect, } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Container,
   Grid,
@@ -14,8 +13,16 @@ import {
   Alert,
   LinearProgress,
   Chip,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Select,
+  MenuItem,
+  List,
+  ListItem,
+  ListItemText,
   useTheme,
-  
+  TextField 
 } from '@mui/material';
 import {
   SendRounded,
@@ -24,7 +31,12 @@ import {
   CodeRounded,
   ContentCopyRounded,
   ReplayRounded,
-  ExpandMoreRounded
+  ExpandMoreRounded,
+  Folder,
+  Add,
+  CollectionsBookmark,
+  Edit,
+  Delete
 } from '@mui/icons-material';
 import { styled, keyframes } from '@mui/material/styles';
 import axios from 'axios';
@@ -33,7 +45,6 @@ import MethodSelector from './Api/MethodSelector';
 import HeadersInput from './Api/HeadersInput';
 import BodyInput from './Api/BodyInput';
 import ResponseDisplay from './Response/ResponseDisplay';
-import RequestHistory from './Response/RequestHistory';
 import QueryParamsInput from './Api/QueryParamsInput';
 import EnvironmentVariables from './Api/EnvironmentVariables';
 import AuthInput from './Api/AuthInput';
@@ -67,13 +78,13 @@ const AnimatedButton = styled(Button)({
 const RequestForm = () => {
   const theme = useTheme();
   const [activeTab, setActiveTab] = useState(0);
-  const [expandedSection, setExpandedSection] = useState(null);
   const [apiUrl, setApiUrl] = useState('');
   const [method, setMethod] = useState('GET');
   const [headers, setHeaders] = useState('{}');
   const [body, setBody] = useState('');
   const [response, setResponse] = useState(null);
   const [requestHistory, setRequestHistory] = useState([]);
+  const [collections, setCollections] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [queryParams, setQueryParams] = useState('{}');
   const [auth, setAuth] = useState({ type: 'none', token: '' });
@@ -84,29 +95,49 @@ const RequestForm = () => {
     request: true,
     advanced: false
   });
-  const [suggestions, setSuggestions] = useState([]);
+  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
+  const [selectedCollectionId, setSelectedCollectionId] = useState('');
+  const [newCollectionDialogOpen, setNewCollectionDialogOpen] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [newRequestDialogOpen, setNewRequestDialogOpen] = useState(false);
+  const [newRequestData, setNewRequestData] = useState({
+    name: '',
+    method: 'GET',
+    url: '',
+    headers: '{}',
+    body: ''
+  });
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
-   // Добавляем эффект для загрузки истории при монтировании
-   useEffect(() => {
+  useEffect(() => {
     fetchRequestHistory();
+    fetchCollections();
   }, []);
 
-    // Функция для загрузки истории с сервера
-    const fetchRequestHistory = async () => {
-      setLoadingHistory(true);
-      try {
-        const response = await axios.get('/api/requests/history');
-        const parsedRequests = response.data.map(parseServerRequest);
-        setRequestHistory(parsedRequests);
-      } catch (error) {
-        console.error('Error fetching history:', error);
-        setError('Failed to load request history');
-      } finally {
-        setLoadingHistory(false);
-      }
-    };
+  const fetchRequestHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const response = await axios.get('/api/requests/history');
+      const parsedRequests = response.data.map(parseServerRequest);
+      setRequestHistory(parsedRequests);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      setError('Failed to load request history');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
-     // Парсер для преобразования данных с сервера
+  const fetchCollections = async () => {
+    try {
+      const response = await axios.get('/api/collections');
+      setCollections(response.data);
+    } catch (error) {
+      console.error('Error fetching collections:', error);
+      setError('Failed to load collections');
+    }
+  };
+
   const parseServerRequest = (serverRequest) => ({
     id: serverRequest._id,
     method: serverRequest.method,
@@ -123,22 +154,20 @@ const RequestForm = () => {
     timestamp: serverRequest.timestamp
   });
 
-    // Вспомогательные функции
-    const parseQueryString = (queryString) => {
-      const params = new URLSearchParams(queryString);
-      const result = {};
-      params.forEach((value, key) => result[key] = value);
-      return result;
-    };
+  const parseQueryString = (queryString) => {
+    const params = new URLSearchParams(queryString);
+    const result = {};
+    params.forEach((value, key) => result[key] = value);
+    return result;
+  };
 
-    const tryParseJSON = (str) => {
-      try {
-        return JSON.parse(str);
-      } catch {
-        return str || null;
-      }
-    };
-  
+  const tryParseJSON = (str) => {
+    try {
+      return JSON.parse(str);
+    } catch {
+      return str || null;
+    }
+  };
 
   const safeJSONParse = (str, defaultValue) => {
     try {
@@ -209,7 +238,6 @@ const RequestForm = () => {
       };
       await fetchRequestHistory();
 
-
       setResponse(newRequest.response);
 
     } catch (error) {
@@ -219,11 +247,80 @@ const RequestForm = () => {
       setLoading(false);
     }
   };
+
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
       ...prev,
       [section]: !prev[section]
     }));
+  };
+
+  const handleSaveToCollection = async () => {
+    try {
+      const requestData = {
+        name: `Request ${new Date().toLocaleString()}`,
+        method,
+        url: apiUrl,
+        headers: JSON.parse(headers),
+        body: body ? JSON.parse(body) : null,
+        queryParams: JSON.parse(queryParams)
+      };
+
+      await axios.post(`/api/collections/${selectedCollectionId}/requests`, requestData);
+      setSaveDialogOpen(false);
+      fetchCollections();
+    } catch (error) {
+      setError('Failed to save request to collection');
+    }
+  };
+
+  const handleCreateCollection = async () => {
+    try {
+      await axios.post('/api/collections', { name: newCollectionName });
+      await fetchCollections();
+      setNewCollectionDialogOpen(false);
+      setNewCollectionName('');
+    } catch (error) {
+      setError('Failed to create collection');
+    }
+  };
+
+  const handleCreateRequest = async () => {
+    try {
+      await axios.post(`/api/collections/${selectedCollectionId}/requests`, {
+        ...newRequestData,
+        queryParams: '{}'
+      });
+      await fetchCollections();
+      setNewRequestDialogOpen(false);
+      setNewRequestData({
+        name: '',
+        method: 'GET',
+        url: '',
+        headers: '{}',
+        body: ''
+      });
+    } catch (error) {
+      setError('Failed to create request');
+    }
+  };
+
+  const handleDeleteCollection = async (collectionId) => {
+    try {
+      await axios.delete(`/api/collections/${collectionId}`);
+      await fetchCollections();
+    } catch (error) {
+      setError('Failed to delete collection');
+    }
+  };
+
+  const handleDeleteRequest = async (requestId) => {
+    try {
+      await axios.delete(`/api/collections/requests/${requestId}`);
+      await fetchCollections();
+    } catch (error) {
+      setError('Failed to delete request');
+    }
   };
 
   const SectionHeader = ({ title, icon, sectionKey }) => (
@@ -251,9 +348,6 @@ const RequestForm = () => {
     </Stack>
   );
 
-
-    
-  // Получаем историю URL для автодополнения
   const urlSuggestions = React.useMemo(
     () => [...new Set(requestHistory
       .map(req => req?.url)
@@ -264,8 +358,112 @@ const RequestForm = () => {
   return (
     <Container maxWidth="xl" sx={{ py: 4, height: '100vh' }}>
       <Grid container spacing={3} sx={{ height: '100%' }}>
-        {/* Левая панель - Конфигурация */}
-        <Grid item xs={12} md={5} lg={5} sx={{ height: '100%' }}>
+        {/* Коллекции */}
+        <Grid item xs={12} md={3} lg={2} sx={{ height: '100%' }}>
+          <StyledPaper>
+            <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+              <CollectionsBookmark sx={{ mr: 1 }} />Коллекции
+            </Typography>
+            
+            <Button 
+              fullWidth 
+              variant="outlined" 
+              startIcon={<Add />}
+              onClick={() => setNewCollectionDialogOpen(true)}
+              sx={{ mb: 2 }}
+            >
+              Новая коллекция
+            </Button>
+
+            <List sx={{ overflow: 'auto', maxHeight: '80vh' }}>
+              {collections.map(collection => (
+                <div key={collection._id}>
+                  <ListItem 
+                    button 
+                    selected={selectedCollectionId === collection._id}
+                    sx={{ position: 'relative' }}
+                  >
+                    <div 
+                      style={{ 
+                        width: '100%', 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                      onClick={() => setSelectedCollectionId(
+                        selectedCollectionId === collection._id ? '' : collection._id
+                      )}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <Folder sx={{ mr: 1, color: 'text.secondary' }} />
+                        <ListItemText 
+                          primary={collection.name} 
+                          secondary={`${collection.requests?.length || 0} items`}
+                        />
+                      </div>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCollection(collection._id);
+                        }}
+                      >
+                        <Delete fontSize="small" />
+                      </IconButton>
+                    </div>
+                  </ListItem>
+                  
+                  {selectedCollectionId === collection._id && (
+                    <List sx={{ pl: 4 }}>
+                      {collection.requests?.map(request => (
+                        <ListItem 
+                          key={request._id}
+                          button 
+                          selected={selectedRequest === request._id}
+                          sx={{ pl: 4 }}
+                          onClick={() => {
+                            setSelectedRequest(request._id);
+                            setMethod(request.method);
+                            setApiUrl(request.url);
+                            setHeaders(JSON.stringify(request.headers, null, 2));
+                            setBody(request.body ? JSON.stringify(request.body, null, 2) : '');
+                            setQueryParams(JSON.stringify(request.queryParams, null, 2));
+                          }}
+                        >
+                          <ListItemText
+                            primary={request.name}
+                            secondary={`${request.method} ${request.url}`}
+                          />
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteRequest(request._id);
+                            }}
+                          >
+                            <Delete fontSize="small" />
+                          </IconButton>
+                        </ListItem>
+                      ))}
+                      <Button 
+                        fullWidth 
+                        variant="text" 
+                        startIcon={<Add />}
+                        onClick={() => setNewRequestDialogOpen(true)}
+                        sx={{ mt: 1 }}
+                      >
+                        Добавить запрос
+                      </Button>
+                    </List>
+                  )}
+                </div>
+              ))}
+            </List>
+          </StyledPaper>
+        </Grid>
+
+        {/* Основная форма */}
+        <Grid item xs={12} md={6} lg={5} sx={{ height: '100%' }}>
           <StyledPaper>
             <Tabs 
               value={activeTab} 
@@ -276,17 +474,17 @@ const RequestForm = () => {
               }}
             >
               <Tab 
-                label="Request" 
+                label="Запрос" 
                 icon={<CodeRounded fontSize="small" />} 
                 sx={{ minHeight: 48 }}
               />
               <Tab 
-                label="History" 
+                label="История" 
                 icon={<HistoryRounded fontSize="small" />} 
                 sx={{ minHeight: 48 }}
               />
               <Tab 
-                label="Settings" 
+                label="Настройки" 
                 icon={<SettingsRounded fontSize="small" />} 
                 sx={{ minHeight: 48 }}
               />
@@ -295,7 +493,7 @@ const RequestForm = () => {
             {activeTab === 0 ? (
               <Stack spacing={3} sx={{ flex: 1 }}>
                 <SectionHeader
-                  title="Request Setup"
+                  title="Настройка запроса"
                   icon={<SendRounded />}
                   sectionKey="request"
                 />
@@ -311,19 +509,19 @@ const RequestForm = () => {
                         />
                       </Grid>
                       <Grid item xs={9}>
-                      <ApiInput
-        value={apiUrl}
-        onChange={setApiUrl}
-        onBlur={() => setApiUrl(apiUrl.trim())}
-        suggestions={urlSuggestions} // Передаем обработанный массив
-      />
+                        <ApiInput
+                          value={apiUrl}
+                          onChange={setApiUrl}
+                          onBlur={() => setApiUrl(apiUrl.trim())}
+                          suggestions={urlSuggestions}
+                        />
                       </Grid>
                     </Grid>
 
                     <Divider sx={{ my: 1 }} />
 
                     <SectionHeader
-                      title="Advanced Options"
+                      title="Расширенные настройки"
                       icon={<SettingsRounded />}
                       sectionKey="advanced"
                     />
@@ -368,22 +566,57 @@ const RequestForm = () => {
                     '&:disabled': { animation: `${pulse} 1.5s infinite` }
                   }}
                 >
-                  {loading ? 'Processing...' : 'Execute Request'}
+                  {loading ? 'Загрузка...' : 'Выполнить запрос'}
                 </AnimatedButton>
               </Stack>
             ) : activeTab === 1 ? (
-              <RequestHistory 
-                requests={requestHistory}
-                onReuseRequest={(request) => {
-                  setApiUrl(request.url);
-                  setMethod(request.method);
-                  setHeaders(JSON.stringify(request.headers, null, 2));
-                  setBody(JSON.stringify(request.body || null, null, 2));
-                  setQueryParams(JSON.stringify(request.query, null, 2));
-                  setResponse(request.response);
-                  setActiveTab(0);
-                }}
-              />
+              <Stack spacing={1} sx={{ maxHeight: '70vh', overflow: 'auto' }}>
+                {loadingHistory ? (
+                  <LinearProgress />
+                ) : requestHistory.length === 0 ? (
+                  <Typography color="text.secondary" sx={{ p: 2 }}>
+                    В истории запросов не найдено
+                  </Typography>
+                ) : (
+                  requestHistory.map((request) => (
+                    <Paper 
+                      key={request.id}
+                      sx={{
+                        p: 1.5,
+                        cursor: 'pointer',
+                        '&:hover': { bgcolor: 'action.hover' },
+                        transition: 'all 0.2s'
+                      }}
+                      onClick={() => {
+                        setApiUrl(request.url);
+                        setMethod(request.method);
+                        setHeaders(JSON.stringify(request.headers, null, 2));
+                        setBody(request.body ? JSON.stringify(request.body, null, 2) : '');
+                        setQueryParams(JSON.stringify(request.query, null, 2));
+                        setResponse(request.response);
+                        setActiveTab(0);
+                      }}
+                    >
+                      <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <Chip
+                          label={request.method}
+                          color={
+                            request.response?.status >= 400                              ? 'error' : 
+                            request.method === 'GET' ? 'success' : 'warning'
+                          }
+                          size="small"
+                        />
+                        <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                          {request.url}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(request.timestamp).toLocaleTimeString()}
+                        </Typography>
+                      </Stack>
+                    </Paper>
+                  ))
+                )}
+              </Stack>
             ) : (
               <EnvironmentVariables 
                 variables={envVars} 
@@ -393,8 +626,8 @@ const RequestForm = () => {
           </StyledPaper>
         </Grid>
 
-        {/* Правая панель - Ответ */}
-        <Grid item xs={12} md={7} lg={7} sx={{ height: '100%' }}>
+        {/* Ответ */}
+        <Grid item xs={12} md={3} lg={5} sx={{ height: '100%' }}>
           <StyledPaper sx={{ p: 0 }}>
             <Stack 
               direction="row" 
@@ -402,7 +635,7 @@ const RequestForm = () => {
               spacing={1} 
               sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
             >
-              <Typography variant="subtitle1" fontWeight={600}>Response</Typography>
+              <Typography variant="subtitle1" fontWeight={600}>Ответ</Typography>
               {response?.status && (
                 <Chip 
                   label={`${response.status} • ${response.latency}ms`} 
@@ -413,13 +646,6 @@ const RequestForm = () => {
                   }
                 />
               )}
-              <IconButton 
-                size="small" 
-                sx={{ ml: 'auto' }}
-                onClick={() => navigator.clipboard.writeText(JSON.stringify(response))}
-              >
-                <ContentCopyRounded fontSize="small" />
-              </IconButton>
             </Stack>
 
             {loading ? (
@@ -441,12 +667,115 @@ const RequestForm = () => {
                 }}
               >
                 <ReplayRounded sx={{ fontSize: 48, opacity: 0.5 }} />
-                <Typography variant="body2">Send a request to view response</Typography>
+                <Typography variant="body2">Отправьте запрос что бы увидеть ответ</Typography>
               </Stack>
             )}
           </StyledPaper>
         </Grid>
       </Grid>
+
+      {/* Диалог создания коллекции */}
+      <Dialog open={newCollectionDialogOpen} onClose={() => setNewCollectionDialogOpen(false)}>
+        <DialogTitle>Create New Collection</DialogTitle>
+        <DialogContent sx={{ minWidth: 400, pt: 2 }}>
+          <TextField
+            fullWidth
+            label="Collection Name"
+            value={newCollectionName}
+            onChange={(e) => setNewCollectionName(e.target.value)}
+            sx={{ mb: 2 }}
+          />
+          <Button 
+            fullWidth 
+            variant="contained" 
+            onClick={handleCreateCollection}
+            disabled={!newCollectionName.trim()}
+          >
+            Create Collection
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Диалог создания запроса */}
+      <Dialog open={newRequestDialogOpen} onClose={() => setNewRequestDialogOpen(false)}>
+        <DialogTitle>Create New Request</DialogTitle>
+        <DialogContent sx={{ minWidth: 600 }}>
+          <Stack spacing={3} sx={{ mt: 2 }}>
+            <TextField
+              label="Request Name"
+              fullWidth
+              value={newRequestData.name}
+              onChange={(e) => setNewRequestData({...newRequestData, name: e.target.value})}
+            />
+            
+            <MethodSelector
+              value={newRequestData.method}
+              onChange={(method) => setNewRequestData({...newRequestData, method})}
+            />
+            
+            <ApiInput
+              value={newRequestData.url}
+              onChange={(url) => setNewRequestData({...newRequestData, url})}
+            />
+            
+            <HeadersInput
+              value={newRequestData.headers}
+              onChange={(headers) => setNewRequestData({...newRequestData, headers})}
+            />
+            
+            <BodyInput
+              value={newRequestData.body}
+              onChange={(body) => setNewRequestData({...newRequestData, body})}
+              method={newRequestData.method}
+            />
+            
+            <Button 
+              variant="contained" 
+              onClick={handleCreateRequest}
+              disabled={!newRequestData.name.trim() || !newRequestData.url.trim()}
+            >
+              Create Request
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
+
+      {/* Диалог сохранения в коллекцию */}
+      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
+        <DialogTitle>Save to Collection</DialogTitle>
+        <DialogContent sx={{ minWidth: 400 }}>
+          <Select
+            fullWidth
+            value={selectedCollectionId}
+            onChange={(e) => setSelectedCollectionId(e.target.value)}
+            displayEmpty
+          >
+            <MenuItem value="" disabled>Select collection</MenuItem>
+            {collections.map(collection => (
+              <MenuItem key={collection._id} value={collection._id}>
+                {collection.name} ({collection.requests?.length || 0})
+              </MenuItem>
+            ))}
+          </Select>
+          
+          <Button 
+            fullWidth 
+            variant="contained" 
+            sx={{ mt: 2 }}
+            onClick={handleSaveToCollection}
+            disabled={!selectedCollectionId}
+          >
+            Save Request
+          </Button>
+        </DialogContent>
+      </Dialog>
+
+      {/* Отображение ошибок */}
+      {error && (
+        <Alert severity="error" sx={{ position: 'fixed', bottom: 20, right: 20 }}>
+          {error}
+        </Alert>
+      )}
     </Container>
   );
 };

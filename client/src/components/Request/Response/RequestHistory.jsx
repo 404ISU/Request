@@ -17,7 +17,7 @@ const RequestHistory = ({ requests, onReuseRequest }) => {
   return (
     <Paper elevation={3} sx={{ p: 3, mb: 3 }}>
       <Typography variant="h6" gutterBottom>
-        Request History ({requests.length})
+        История Запросов ({requests.length})
       </Typography>
 
       <List sx={{ maxHeight: '60vh', overflow: 'auto' }}>
@@ -50,7 +50,7 @@ const RequestHistory = ({ requests, onReuseRequest }) => {
             onClick={() => onReuseRequest(selectedRequest)}
             sx={{ mb: 2 }}
           >
-            Reuse Request
+            Повторить
           </Button>
           <ResponseDisplay 
             data={selectedRequest.response.data}
