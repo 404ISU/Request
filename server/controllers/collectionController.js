@@ -1,6 +1,7 @@
 const { Collection, CollectionItem } = require('../models/Collections');
 const Request = require('../models/Request');
 
+// создание коллекции
 exports.createCollection = async (req, res) => {
   try {
     const collection = await Collection.create({
@@ -13,6 +14,7 @@ exports.createCollection = async (req, res) => {
   }
 };
 
+// вывод всех коллекций
 exports.getCollections = async (req, res) => {
   try {
     const collections = await Collection.find({ userId: req.user._id })

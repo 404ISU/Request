@@ -111,6 +111,7 @@ const Documentation = () => {
           position: 'relative',
           overflow: 'hidden',
           '&:before': {
+            transition: '500ms',
             content: '""',
             position: 'absolute',
             top: -50,

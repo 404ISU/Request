@@ -1,250 +1,331 @@
-import React, { memo, Suspense, useState, useCallback, useMemo, useEffect, useRef } from "react";
-import PropTypes from "prop-types";
-import {
-  Paper,
-  Box,
-  Tabs,
-  Tab,
-  Chip,
-  CircularProgress,
-  IconButton,
-  Tooltip,
-  useTheme,
-  TextField,
-  InputAdornment
-} from "@mui/material";
-import { Code, ContentCopy, Http, CheckCircleOutline, Search, Clear } from "@mui/icons-material";
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { Box, Tabs, Tab, Chip, ButtonGroup, Button, Tooltip, ToggleButton, TextField, InputAdornment } from '@mui/material';
+import { Code, FormatAlignLeft, WrapText, Search, ContentCopy } from '@mui/icons-material';
+import Editor from '@monaco-editor/react';
 
-const Editor = React.lazy(() => import("@monaco-editor/react"));
-
-const ResponseDisplay = memo(({ data, headers, latency, contentType }) => {
-  const theme = useTheme();
-  const [viewMode, setViewMode] = useState("body");
+const ResponseDisplay = ({ data, headers, status, latency }) => {
+  const [activeTab, setActiveTab] = useState('body');
+  const [viewMode, setViewMode] = useState('pretty');
   const [copied, setCopied] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [wordWrap, setWordWrap] = useState(true);
+  const [searchText, setSearchText] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [activeMatch, setActiveMatch] = useState(0);
   const editorRef = useRef(null);
-  const decorationsRef = useRef([]);
+  const decorations = useRef([]);
 
-  // Определение типа контента
-  const detectedContentType = useMemo(() => {
-    if (contentType?.includes("application/json")) return "json";
-    if (contentType?.includes("application/xml")) return "xml";
-    if (contentType?.includes("text/html")) return "html";
-    return "text";
-  }, [contentType]);
-
-  // Форматирование содержимого
-  const formattedContent = useMemo(() => {
-    try {
-      const input = viewMode === "body" ? data : headers;
-      
-      if (typeof input === "string") {
-        if (detectedContentType === "json") {
-          return JSON.stringify(JSON.parse(input), null, 2);
-        }
-        return input;
+  // Стили подсветки поиска
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .search-highlight {
+        background-color: #ffd70080 !important;
+        border-radius: 3px;
+        transition: background-color 0.3s;
       }
-      return JSON.stringify(input, null, 2);
-    } catch (error) {
-      return String(input);
-    }
-  }, [data, headers, viewMode, detectedContentType]);
-
-  // Очистка подсветки
-  const clearDecorations = useCallback(() => {
-    if (editorRef.current) {
-      decorationsRef.current = editorRef.current.deltaDecorations(decorationsRef.current, []);
-    }
+      .search-highlight.current-match {
+        background-color: #ffae00 !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
   }, []);
 
-  // Поиск и подсветка совпадений
-  const highlightMatches = useCallback((term) => {
-    if (!editorRef.current || !term) {
-      clearDecorations();
-      return;
-    }
-
-    const model = editorRef.current.getModel();
-    const matches = model.findMatches(term, true, false, true, null, true);
-    
-    decorationsRef.current = model.deltaDecorations(
-      decorationsRef.current,
-      matches.map(match => ({
-        range: match.range,
-        options: {
-          inlineClassName: 'search-match',
-          stickiness: 1
-        }
-      }))
-    );
-  }, [clearDecorations]);
-
-  // Обработчик изменения поискового запроса
-  useEffect(() => {
-    const handler = setTimeout(() => highlightMatches(searchTerm), 300);
-    return () => clearTimeout(handler);
-  }, [searchTerm, highlightMatches]);
-
-  // Обновление при изменении контента
-  useEffect(() => {
-    highlightMatches(searchTerm);
-  }, [formattedContent, highlightMatches, searchTerm]);
-
-  // Инициализация редактора
-  const handleEditorMount = useCallback((editor) => {
-    editorRef.current = editor;
-    editor.getAction("editor.action.formatDocument").run();
-  }, []);
-
-  // Копирование содержимого
-  const handleCopy = useCallback(async () => {
+  // Форматирование данных
+  const formattedData = useMemo(() => {
     try {
-      await navigator.clipboard.writeText(formattedContent);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error("Ошибка копирования:", error);
-    }
-  }, [formattedContent]);
+      const content = activeTab === 'body' ? data : headers;
+      
+      if (viewMode === 'pretty') {
+        return typeof content === 'string' 
+          ? JSON.stringify(JSON.parse(content), null, 2)
+          : JSON.stringify(content, null, 2);
+      }
 
-  // Параметры редактора
+      if (typeof content === 'string') {
+        try {
+          const parsed = JSON.parse(content);
+          return JSON.stringify(parsed)
+            .replace(/},/g, '},\n')
+            .replace(/\],/g, '],\n')
+            .replace(/},\n}/g, '}}')
+            .replace(/\],\n\]/g, ']]');
+        } catch {
+          return content;
+        }
+      }
+
+      return JSON.stringify(content);
+    } catch {
+      return typeof data === 'string' ? data : JSON.stringify(data);
+    }
+  }, [data, headers, activeTab, viewMode]);
+
+  // Обработка копирования
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(formattedData);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Настройки редактора
   const editorOptions = useMemo(() => ({
     readOnly: true,
     minimap: { enabled: false },
-    lineNumbers: "off",
+    lineNumbers: viewMode === 'pretty' ? 'on' : 'off',
     scrollBeyondLastLine: false,
-    automaticLayout: true,
+    wordWrap: wordWrap ? 'on' : 'off',
     fontSize: 14,
-    fontFamily: "Fira Code, Menlo, Monaco, Consolas, monospace",
-    renderValidationDecorations: "off",
-    occurrencesHighlight: false,
-    find: {
-      addFindWidget: false // Отключаем стандартный поиск
+    fontFamily: "'Fira Code', monospace",
+    renderWhitespace: 'none',
+    automaticLayout: true,
+    scrollbar: {
+      vertical: 'auto',
+      horizontal: wordWrap ? 'hidden' : 'auto'
+    },
+  }), [viewMode, wordWrap]);
+
+  // Монтирование редактора
+  const handleEditorMount = (editor) => {
+    editorRef.current = editor;
+  };
+
+  // Поиск совпадений
+  const handleSearch = (text) => {
+    setSearchText(text);
+    if (!editorRef.current) return;
+
+    const model = editorRef.current.getModel();
+    if (!model) return;
+
+    editorRef.current.deltaDecorations(decorations.current, []);
+    setSearchResults([]);
+    setActiveMatch(0);
+
+    if (!text) return;
+
+    const matches = model.findMatches(text, true, false, true, null, true);
+    setSearchResults(matches);
+
+    if (matches.length === 0) return;
+
+    const newDecorations = matches.map((match, index) => ({
+      range: match.range,
+      options: {
+        inlineClassName: index === 0 ? 'search-highlight current-match' : 'search-highlight',
+        overviewRuler: {
+          color: index === 0 ? '#ffae00' : '#ffd70080',
+          position: 4
+        }
+      }
+    }));
+
+    decorations.current = editorRef.current.deltaDecorations([], newDecorations);
+    setActiveMatch(0);
+    editorRef.current.revealRangeInCenter(matches[0].range);
+  };
+
+  // Навигация по совпадениям
+  const handleNextMatch = () => {
+    if (searchResults.length === 0) return;
+    const nextIndex = (activeMatch + 1) % searchResults.length;
+    updateActiveMatch(nextIndex);
+  };
+
+  const handlePrevMatch = () => {
+    if (searchResults.length === 0) return;
+    const prevIndex = (activeMatch - 1 + searchResults.length) % searchResults.length;
+    updateActiveMatch(prevIndex);
+  };
+
+  const updateActiveMatch = (index) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const newDecorations = searchResults.map((match, i) => ({
+      range: match.range,
+      options: {
+        inlineClassName: i === index ? 'search-highlight current-match' : 'search-highlight',
+        overviewRuler: {
+          color: i === index ? '#ffae00' : '#ffd70080',
+          position: 4
+        }
+      }
+    }));
+
+    decorations.current = editor.deltaDecorations(decorations.current, newDecorations);
+    setActiveMatch(index);
+    editor.revealRangeInCenter(searchResults[index].range);
+  };
+
+  // Сброс поиска при изменении данных
+  useEffect(() => {
+    setSearchText('');
+    setSearchResults([]);
+    setActiveMatch(0);
+    if (editorRef.current) {
+      editorRef.current.deltaDecorations(decorations.current, []);
     }
-  }), []);
+  }, [formattedData]);
 
   return (
-    <Paper elevation={3} sx={{
-      mt: 2,
+    <Box sx={{ 
+      border: '1px solid #ddd', 
+      borderRadius: 2, 
       p: 2,
-      borderRadius: "8px",
-      border: `1px solid ${theme.palette.divider}`,
-      backgroundColor: theme.palette.background.paper,
+      bgcolor: 'background.paper'
     }}>
-      <Box display="flex" gap={2} mb={2} alignItems="center">
-        <TextField
-          fullWidth
-          variant="outlined"
-          size="small"
-          label="Поиск в ответе"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search fontSize="small" />
-              </InputAdornment>
-            ),
-            endAdornment: searchTerm && (
-              <InputAdornment position="end">
-                <IconButton
-                  size="small"
-                  onClick={() => {
-                    setSearchTerm("");
-                    clearDecorations();
-                  }}
-                >
-                  <Clear fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            )
-          }}
-          sx={{ flex: 1 }}
-        />
-
-        <Tooltip title={copied ? "Скопировано!" : "Копировать в буфер"}>
-          <IconButton onClick={handleCopy} size="small">
-            {copied ? (
-              <CheckCircleOutline color="success" fontSize="small" />
-            ) : (
-              <ContentCopy fontSize="small" />
-            )}
-          </IconButton>
-        </Tooltip>
-
-        {latency && (
-          <Chip
-            label={`${latency}ms`}
-            size="small"
-            variant="outlined"
-            sx={{ ml: "auto" }}
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        mb: 2,
+        flexWrap: 'wrap',
+        gap: 2
+      }}>
+        <Tabs 
+          value={activeTab}
+          onChange={(_, v) => setActiveTab(v)}
+          sx={{ minHeight: 40 }}
+        >
+          <Tab 
+            label="Body" 
+            value="body" 
+            icon={<Code fontSize="small" />}
+            sx={{ minHeight: 40, textTransform: 'none' }}
           />
-        )}
-      </Box>
+          <Tab 
+            label="Headers" 
+            value="headers" 
+            icon={<FormatAlignLeft fontSize="small" />}
+            sx={{ minHeight: 40, textTransform: 'none' }}
+          />
+        </Tabs>
 
-      <Tabs
-        value={viewMode}
-        onChange={(_, v) => setViewMode(v)}
-        sx={{ borderBottom: 1, borderColor: "divider" }}
-      >
-        <Tab
-          label="Тело"
-          value="body"
-          icon={<Code fontSize="small" />}
-          sx={{ minHeight: 48, textTransform: "none" }}
-        />
-        <Tab
-          label="Заголовки"
-          value="headers"
-          icon={<Http fontSize="small" />}
-          sx={{ minHeight: 48, textTransform: "none" }}
-        />
-      </Tabs>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 2,
+          flexWrap: 'wrap',
+          '@media (max-width: 600px)': {
+            width: '100%',
+            justifyContent: 'space-between'
+          }
+        }}>
+          <ButtonGroup size="small">
+            <Button
+              variant={viewMode === 'pretty' ? 'contained' : 'outlined'}
+              onClick={() => setViewMode('pretty')}
+            >
+              Pretty
+            </Button>
+            <Button
+              variant={viewMode === 'raw' ? 'contained' : 'outlined'}
+              onClick={() => setViewMode('raw')}
+            >
+              Raw
+            </Button>
+          </ButtonGroup>
 
-      <Box sx={{ height: "400px", mt: 2, position: "relative" }}>
-        <Suspense fallback={
-          <Box height="100%" display="flex" alignItems="center" justifyContent="center">
-            <CircularProgress size={32} thickness={4} />
+          <Box sx={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+            flexWrap: 'wrap',
+            flexGrow: 1,
+            maxWidth: '100%',
+            '@media (max-width: 600px)': {
+              width: '100%',
+              mt: 1
+            }
+          }}>
+            <TextField
+              size="small"
+              placeholder="Поиск..."
+              value={searchText}
+              onChange={(e) => handleSearch(e.target.value)}
+              InputProps={{
+                startAdornment: <InputAdornment position="start"><Search fontSize="small" /></InputAdornment>,
+              }}
+              sx={{ 
+                width: { xs: '100%', sm: 250 },
+                minWidth: 150,
+                flexGrow: 1
+              }}
+            />
+
+            <ButtonGroup size="small" disabled={searchResults.length === 0}>
+              <Button onClick={handlePrevMatch} disabled={searchResults.length === 0}>
+                ←
+              </Button>
+              <Chip 
+                label={`${activeMatch + 1}/${searchResults.length}`}
+                size="small"
+                sx={{ mx: 1 }}
+              />
+              <Button onClick={handleNextMatch} disabled={searchResults.length === 0}>
+                →
+              </Button>
+            </ButtonGroup>
           </Box>
-        }>
-          <Editor
-            height="100%"
-            language={detectedContentType}
-            value={formattedContent}
-            theme={theme.palette.mode === "dark" ? "vs-dark" : "light"}
-            onMount={handleEditorMount}
-            options={editorOptions}
-          />
-        </Suspense>
+
+          <Tooltip title={`${wordWrap ? 'Выключить' : 'Включить'} перенос строк`}>
+            <ToggleButton
+              size="small"
+              value={wordWrap}
+              onChange={() => setWordWrap(!wordWrap)}
+              sx={{ 
+                border: '1px solid #ccc',
+                bgcolor: wordWrap ? 'primary.light' : 'background.paper'
+              }}
+            >
+              <WrapText fontSize="small" />
+            </ToggleButton>
+          </Tooltip>
+
+          {latency && (
+            <Chip 
+              label={`${latency}ms`} 
+              size="small" 
+              color="info"
+            />
+          )}
+
+          <Tooltip title={copied ? "Скопировано!" : "Скопировать в буфер обмена"}>
+            <Chip
+              clickable
+              icon={<ContentCopy fontSize="small" />}
+              onClick={handleCopy}
+              color={copied ? 'success' : 'default'}
+              sx={{
+                minWidth: 40,
+                '& .MuiChip-icon': {
+                  marginRight: 0
+                }
+              }}
+            />
+          </Tooltip>
+        </Box>
       </Box>
 
-      <style>
-        {`
-          .search-match {
-            background-color: ${theme.palette.warning.light}80;
-            border: 1px solid ${theme.palette.warning.main};
-            border-radius: 2px;
-          }
-          .monaco-editor .find-widget {
-            display: none !important;
-          }
-        `}
-      </style>
-    </Paper>
+      <Box sx={{ 
+        height: 400,
+        border: '1px solid #eee',
+        borderRadius: 1,
+        overflow: 'hidden',
+        position: 'relative'
+      }}>
+        <Editor
+          height="100%"
+          language={viewMode === 'raw' ? 'json' : 'json'}
+          theme="light"
+          value={formattedData}
+          options={editorOptions}
+          onMount={handleEditorMount}
+        />
+      </Box>
+    </Box>
   );
-});
-
-ResponseDisplay.propTypes = {
-  data: PropTypes.oneOfType([PropTypes.object, PropTypes.string]),
-  headers: PropTypes.object,
-  latency: PropTypes.number,
-  contentType: PropTypes.string
-};
-
-ResponseDisplay.defaultProps = {
-  data: {},
-  headers: {},
-  contentType: "application/json"
 };
 
 export default ResponseDisplay;

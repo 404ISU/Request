@@ -93,6 +93,7 @@ router.get('/history', async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+    // находим пользователя и его запросы
     const requests = await Request.find({ userId: decoded.id })
     .populate('response')
     .sort({ timestamp: -1 })
