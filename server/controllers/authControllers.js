@@ -41,8 +41,6 @@ const loginUser = async(req,res)=>{
     try {
       const {username, password}= req.body;
 
-      
-
       // проверка если пользователь существует
       const user = await User.findOne({username});
       if(!user){

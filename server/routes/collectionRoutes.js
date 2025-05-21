@@ -1,25 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const collectionController = require('../controllers/collectionController');
-const authMiddleware = require('../middleware/authMiddleware');
+const collectionsCtrl = require('../controllers/collectionController');
+const itemsCtrl = require('../controllers/collectionItemController');
 
-router.use(authMiddleware);
+// Collections
+router.get('/', collectionsCtrl.getCollections);
+router.post('/', collectionsCtrl.createCollection);
+router.delete('/:id', collectionsCtrl.deleteCollection);
+router.get('/:collectionId', collectionsCtrl.getCollectionById); 
 
-// Коллекции
-router.post('/', collectionController.createCollection);
-router.get('/', collectionController.getCollections);
-router.delete('/:id', collectionController.deleteCollection);
-
-// Папки и запросы
-router.post('/:collectionId/folders', collectionController.createFolder);
-router.post('/:collectionId/requests', collectionController.createRequest);
-
-// Элементы коллекций
-router.patch('/items/:itemId', collectionController.updateItem);
-router.delete('/items/:itemId', collectionController.deleteItem);
-
-// Запросы
-router.get('/requests/:requestId', collectionController.getRequest);
-router.put('/requests/:requestId', collectionController.updateRequest);
+// Collection Items
+router.get('/:collectionId/items', itemsCtrl.getCollectionItems);
+router.post('/:collectionId/items', itemsCtrl.createItem);
+router.patch('/:collectionId/reorder', itemsCtrl.reorderItems);
+router.patch('/items/:itemId/toggle', itemsCtrl.toggleFolder);
+router.delete('/items/:itemId', itemsCtrl.deleteItem);
 
 module.exports = router;

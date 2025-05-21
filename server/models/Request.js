@@ -3,7 +3,6 @@
 const mongoose = require('mongoose');
 
 const requestSchema = new mongoose.Schema({
-  name: String,
   url: String, 
   method: String, 
   headers: Object, 

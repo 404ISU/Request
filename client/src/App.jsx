@@ -16,14 +16,18 @@ import ErrorBoundary from './components/Error/ErrorBoundary';
 import Documentation from './pages/Documentation';
 import { ThemeProvider } from '@mui/material';
 import theme from './assets/theme';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Configure Axios defaults
 axios.defaults.baseURL = 'http://localhost:5001';
 axios.defaults.withCredentials = true;
 
+
+const queryClient = new QueryClient();
 function App() {
   return (
     <UserContextProvider>
-      <ErrorBoundary>
+       <QueryClientProvider client={queryClient}>
+       <ErrorBoundary>
       <ThemeProvider theme={theme}>
         <Navbar />
       <Toaster position="bottom-right" toastOptions={{ duration: 2000 }} />
@@ -42,6 +46,7 @@ function App() {
       </ThemeProvider>
       
       </ErrorBoundary>
+       </QueryClientProvider>
     </UserContextProvider>
   );
 }

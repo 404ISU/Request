@@ -1,127 +1,90 @@
-import React, { useState } from "react";
-import { TextField, Button, Box, Typography } from "@mui/material";
+import { useState } from 'react';
+import {
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Chip,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
+} from '@mui/material';
+import { ExpandMore, Add } from '@mui/icons-material';
+import { useQuery, useMutation } from '@tanstack/react-query';
 
-// Генератор уникальных ID
-let envIdCounter = 0;
-const generateEnvId = () =>
-  `env-${Date.now()}-${envIdCounter++}-${Math.random()
-    .toString(36)
-    .slice(2, 7)}`;
-
-const EnvironmentVariables = ({ onChange }) => {
-  const [variables, setVariables] = useState([
-    {
-      id: generateEnvId(),
-      key: "",
-      value: "",
-    },
-  ]);
-  const [environments, setEnvironments] = useState({
-    dev: [],
-    staging: [],
-    prod: [],
+const EnvironmentVariables = ({ collectionId }) => {
+  const [newVar, setNewVar] = useState({ key: '', value: '' });
+  
+  const { data: variables } = useQuery({
+    queryKey: ['variables', collectionId],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/collections/${collectionId}/variables`);
+      return data;
+    }
   });
-  const [currentEnv, setCurrentEnv] = useState("dev");
 
-  const handleVariableChange = (id, field, value) => {
-    const newVariables = variables.map((varItem) =>
-      varItem.id === id ? { ...varItem, [field]: value } : varItem
-    );
-    setVariables(newVariables);
-    onChange(newVariables.filter((v) => v.key.trim() && v.value.trim()));
-  };
+  const mutation = useMutation({
+    mutationFn: (updatedVars) => 
+      axios.put(`/api/collections/${collectionId}/variables`, updatedVars)
+  });
 
-  const addVariable = () => {
-    setVariables([
-      ...variables,
-      {
-        id: generateEnvId(),
-        key: "",
-        value: "",
-      },
-    ]);
+  const handleAddVariable = () => {
+    if (newVar.key && newVar.value) {
+      mutation.mutate({ ...variables, [newVar.key]: newVar.value });
+      setNewVar({ key: '', value: '' });
+    }
   };
 
   return (
-    <Box
-      sx={{
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 2,
-        p: 2,
-        mb: 2,
-      }}
-    >
-      <Typography variant="subtitle1" gutterBottom>
-        Переменные окружения
-      </Typography>
-
-      {variables.map((variable, index) => (
-        <Box
-          key={variable.id}
-          sx={{
-            display: "flex",
-            gap: 1,
-            mb: 1,
-            alignItems: "center",
-          }}
-        >
+    <Accordion defaultExpanded sx={{ mt: 3 }}>
+      <AccordionSummary expandIcon={<ExpandMore />}>
+        <Typography variant="h6">Переменные окружения</Typography>
+        <Chip 
+          label={`${Object.keys(variables || {}).length} переменных`} 
+          size="small" 
+          sx={{ ml: 2 }}
+        />
+      </AccordionSummary>
+      
+      <AccordionDetails>
+        <Box sx={{ display: 'flex', gap: 2, mb: 2 }}>
           <TextField
             label="Ключ"
-            value={variable.key}
-            onChange={(e) =>
-              handleVariableChange(variable.id, "key", e.target.value)
-            }
+            value={newVar.key}
+            onChange={(e) => setNewVar({ ...newVar, key: e.target.value })}
             fullWidth
-            size="small"
           />
-
           <TextField
             label="Значение"
-            value={variable.value}
-            onChange={(e) =>
-              handleVariableChange(variable.id, "value", e.target.value)
-            }
+            value={newVar.value}
+            onChange={(e) => setNewVar({ ...newVar, value: e.target.value })}
             fullWidth
-            size="small"
           />
-          <Box sx={{ mb: 2 }}>
-            {Object.keys(environments).map((env) => (
-              <Button
-                key={env}
-                variant={currentEnv === env ? "contained" : "outlined"}
-                onClick={() => setCurrentEnv(env)}
-              >
-                {env}
-              </Button>
-            ))}
-          </Box>
-
-          {index > 0 && (
-            <Button
-              onClick={() =>
-                setVariables((vars) => vars.filter((v) => v.id !== variable.id))
-              }
-              color="error"
-              size="small"
-              sx={{ minWidth: 40 }}
-            >
-              ×
-            </Button>
-          )}
+          <Button
+            variant="outlined"
+            startIcon={<Add />}
+            onClick={handleAddVariable}
+          >
+            Добавить
+          </Button>
         </Box>
-      ))}
 
-      <Button
-        onClick={addVariable}
-        variant="outlined"
-        size="small"
-        fullWidth
-        sx={{ mt: 1 }}
-      >
-        Добавить переменную
-      </Button>
-    </Box>
+        {Object.entries(variables || {}).map(([key, value]) => (
+          <Box key={key} sx={{ display: 'flex', gap: 2, mb: 1 }}>
+            <TextField
+              value={key}
+              disabled
+              sx={{ flex: 1 }}
+            />
+            <TextField
+              value={value}
+              disabled
+              sx={{ flex: 1 }}
+            />
+          </Box>
+        ))}
+      </AccordionDetails>
+    </Accordion>
   );
 };
 

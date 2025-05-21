@@ -1,4 +1,4 @@
-const { Collection, CollectionItem } = require('../models/Collections');
+const { Collection, CollectionItem } = require('../models/Collection');
 const router = express.Router();
 const express = require('express');
 // Валидация прав владения коллекцией
