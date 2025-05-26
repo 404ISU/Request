@@ -15,5 +15,6 @@ router.post('/:collectionId/items', itemsCtrl.createItem);
 router.patch('/:collectionId/reorder', itemsCtrl.reorderItems);
 router.patch('/items/:itemId/toggle', itemsCtrl.toggleFolder);
 router.delete('/items/:itemId', itemsCtrl.deleteItem);
+router.patch('/items/:itemId/rename', itemsCtrl.renameItem);
 
 module.exports = router;

@@ -14,7 +14,7 @@ import UserProfile from './components/User/UserProfile';
 import AdminPanel from './components/Admin/AdminPanel';
 import ErrorBoundary from './components/Error/ErrorBoundary';
 import Documentation from './pages/Documentation';
-import { ThemeProvider } from '@mui/material';
+import { ThemeProvider, CssBaseline } from '@mui/material';
 import theme from './assets/theme';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Configure Axios defaults
@@ -29,6 +29,7 @@ function App() {
        <QueryClientProvider client={queryClient}>
        <ErrorBoundary>
       <ThemeProvider theme={theme}>
+
         <Navbar />
       <Toaster position="bottom-right" toastOptions={{ duration: 2000 }} />
       
@@ -43,6 +44,7 @@ function App() {
           <Route path="/admin-panel" element={<AdminPanel />} />
           <Route path="/documentation" element={<Documentation />} />
         </Routes>
+                <CssBaseline/>
       </ThemeProvider>
       
       </ErrorBoundary>

@@ -23,7 +23,8 @@ const CollectionItemSchema = new mongoose.Schema({
   },
   order: {
     type: Number,
-    default: 0
+    required: true,
+    min: 0
   },
   isExpanded: {
     type: Boolean,

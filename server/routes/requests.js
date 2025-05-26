@@ -99,9 +99,6 @@ router.get('/history', async (req, res) => {
     .sort({ timestamp: -1 })
     .limit(50) // Добавляем лимит
     .lean();
-
-
-
     requests.forEach(req => {
       if (req.response?.body && typeof req.response.body !== 'string') {
         req.response.body = JSON.stringify(req.response.body);

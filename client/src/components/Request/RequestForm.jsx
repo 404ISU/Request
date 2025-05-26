@@ -145,7 +145,12 @@ const [newItemName, setNewItemName]=useState('');
   const fetchRequestHistory = async () => {
     setLoadingHistory(true);
     try {
-      const response = await axios.get('/api/requests/history');
+      const token = localStorage.getItem('token');
+      const response = await axios.get('/api/requests/history', {
+        headers: {
+           Authorization: `Bearer ${token}`
+        }
+      });
       const parsedRequests = response.data.map(parseServerRequest);
       setRequestHistory(parsedRequests);
     } catch (error) {
@@ -176,10 +181,10 @@ const handleCreateNewItem = async () => {
       }
     );
 
-    queryClient.setQueryData(['collections'], (prev) => 
+    queryClient.setQueryData(['collections'], prev => 
       prev.map(coll => 
-        coll._id === requestState.collectionId 
-          ? { ...coll, items: [...coll.items, data] } 
+        coll._id === requestState.collectionId
+          ? { ...coll, items: [...coll.items, data] }
           : coll
       )
     );
@@ -187,27 +192,37 @@ const handleCreateNewItem = async () => {
     setNewItemDialogOpen(false);
     setNewItemName('');
   } catch (error) {
-    console.error('Ошибка создания:', error);
+    queryClient.invalidateQueries(['collections']);
     setError(error.response?.data?.message || 'Ошибка создания элемента');
   }
 };
-  // Коллекции
-const { data: collections = [], isError} = useQuery({
+const { data: collections = [], isError, isLoading } = useQuery({
   queryKey: ['collections'],
   queryFn: async () => {
     try {
-      const { data } = await axios.get('/api/collections');
-      return data;
+      const { data } = await axios.get('/api/collections', {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      return data.map(c => ({
+        ...c,
+        items: c.items?.sort((a, b) => a.order - b.order) || []
+      }));
     } catch (error) {
-      throw new Error('ошибка загрузки коллекции: ' + error.message);
+      throw new Error(
+        error.response?.data?.message || 
+        'Ошибка загрузки коллекций'
+      );
     }
-
-  }
+  },
+  retry: 1
 });
+
 // Добавьте отображение ошибки
 {isError && (
   <Alert severity="error" sx={{ mb: 2 }}>
-    {error.message}
+    {error}
   </Alert>
 )}
 
@@ -489,14 +504,15 @@ const { mutate: deleteItem } = useMutation({
 
             <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={collections}>
-                {collections.map(collection => (
+                {collections?.map(collection => (
                   <CollectionTree
-                    key={collection._id}
-                    collection={collection}
+                    key={collection._id || 'new-collection'}
+                    collection={collection || {}}
                     onSelect={handleRequestSelect}
                     onContextMenu={(e) => setCollectionsMenu(e.currentTarget)}
                     selected={requestState.collectionId === collection._id}
                     onDelete={deleteItem}
+                    
                   />
                 ))}
               </SortableContext>
@@ -732,7 +748,9 @@ const { mutate: deleteItem } = useMutation({
 
       </Menu>
           <Portal>
-<Dialog open={newItemDialogOpen} onClose={()=>setNewItemDialogOpen(false)} role="dialog" aria-labelledby='new-item-dialog-title' aria-modal="true">
+<Dialog open={newItemDialogOpen} onClose={()=>setNewItemDialogOpen(false)} role="dialog" aria-labelledby='new-item-dialog-title' aria-modal="true" disableEnforceFocus  disablePortal       disableScrollLock  componentsProps={{backdrop:{
+  style: {pointerEvents: 'none'}
+}}}>
       <DialogTitle id="new-item-dialog">
         Создать новый элемент
       </DialogTitle>
