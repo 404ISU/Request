@@ -19,7 +19,7 @@ exports.createItem = async (req, res) => {
   try {
     const { collectionId } = req.params;
     const itemData = req.body;
-    const {name, type}=req.body;
+    const {name, type, parentId}=req.body;
 
     if(!name || !type){
       return res.status(400).json({message: 'Не заполнены объязательные поля'});
@@ -31,8 +31,12 @@ exports.createItem = async (req, res) => {
     }
 
     const newItem = new CollectionItem({
-      ...itemData,
-      collectionId
+      name,
+      type,
+      collectionId,
+      parentId: parentId || null,
+      order: await CollectionItem.countDocuments({ collectionId, parentId: parentId || null }),
+      ...(type === 'request' && { /* параметры запроса */ })
     });
 
     await newItem.save();
@@ -43,7 +47,7 @@ exports.createItem = async (req, res) => {
       {$push: {items: newItem._id}},
       {new: true}
     ).populate('items')
-    res.status(201).json(updatedCollection.items);
+res.status(201).json(newItem);
   } catch (err) {
     res.status(400).json({ 
       message: err.message,

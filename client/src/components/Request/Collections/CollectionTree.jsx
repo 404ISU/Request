@@ -1,193 +1,160 @@
-import React, { useState, useEffect } from 'react';
+// CollectionTree.jsx
+import React, { useState } from 'react';
 import {
-  ListItem,
-  ListItemText,
-  IconButton,
-  Menu,
-  MenuItem,
-  Box,
-  Typography,
-  Button 
+  Box, Typography, IconButton,
+  ListItem, ListItemText,
+  Menu, MenuItem,
+  Dialog, DialogTitle, DialogContent, DialogActions,
+  Select, TextField, Button
 } from '@mui/material';
-import { Folder, InsertDriveFile, Delete, MoreVert, Edit, ExpandMore, ExpandLess, Add } from '@mui/icons-material';
+import {
+  Folder, InsertDriveFile, Delete, Edit,
+  MoreVert, ExpandLess, ExpandMore, Add
+} from '@mui/icons-material';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
-import { arrayMove } from '@dnd-kit/sortable';
 import axios from 'axios';
-import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
-import { FixedSizeList as ReactWindowList } from 'react-window';
+import { useQueryClient } from '@tanstack/react-query';
 import PropTypes from 'prop-types';
 
-const CollectionTreeItem = ({ item, index, depth = 0, collectionId, onDelete, setNewItemDialogOpen }) => {
-  const queryClient = useQueryClient();
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [isExpanded, setIsExpanded] = useState(item.isExpanded);
-  const [menuOpen, setMenuOpen] = useState(null);
-  const [newItemParent, setNewItemParent]=useState(null);
-
-
-  useEffect(() => {
-  setIsExpanded(item.isExpanded ?? true);
-}, [item.isExpanded]);
-
-const handleToggle = async () => {
-  try {
-    const newState = !isExpanded;
-    setIsExpanded(newState);
-    
-    await axios.patch(`/api/collections/items/${item._id}/toggle`, {
-      isExpanded: newState
-    });
-    
-    queryClient.setQueryData(['collections'], prev => 
-      prev.map(coll => ({
-        ...coll,
-        items: coll.items.map(i => 
-          i._id === item._id ? {...i, isExpanded: newState} : i
-        )
-      }))
-    );
-  } catch (error) {
-    console.error('Toggle error:', error);
-    setIsExpanded(!newState); // Откатываем состояние при ошибке
-  }
+// Диалог создания нового элемента
+function NewItemDialog({ open, onClose, onCreate }) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState('request');
+  const handleCreate = async () => {
+    if (!name.trim()) return;
+    await onCreate({ name: name.trim(), type });
+    setName('');
+    setType('request');
+    onClose();
+  };
+  return (
+    <Dialog fullWidth open={open} onClose={onClose}>
+      <DialogTitle>Создать новый элемент</DialogTitle>
+      <DialogContent>
+        <Select
+          fullWidth
+          value={type}
+          onChange={e => setType(e.target.value)}
+          sx={{ mb: 2 }}
+        >
+          <MenuItem value="request">Запрос</MenuItem>
+          <MenuItem value="folder">Папка</MenuItem>
+        </Select>
+        <TextField
+          fullWidth
+          label="Название элемента"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          autoFocus
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Отмена</Button>
+        <Button onClick={handleCreate} disabled={!name.trim()}>
+          Создать
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+NewItemDialog.propTypes = {
+  open: PropTypes.bool.isRequired,
+  onClose: PropTypes.func.isRequired,
+  onCreate: PropTypes.func.isRequired
 };
 
-  const handleRename = async() => {
-    const newName = prompt('Введите новое название', item.name);
-    if(newName){
-      await axios.patch(`/api/collections/items/${item._id}/rename`, {name: newName});
-      queryClient.invalidateQueries(['collections'])
-    }
-    setMenuOpen(null)
+// Рекурсивный компонент элемента дерева
+function TreeItem({
+  item, index, depth, collectionId,
+  onDelete, onAddItem, expandedMap, setExpandedMap
+}) {
+  const qc = useQueryClient();
+  const isFolder = item.type === 'folder';
+  const isExpanded = expandedMap[item._id] ?? true;
+  const [menuAnchor, setMenuAnchor] = useState(null);
+
+  const toggle = async () => {
+    const next = !isExpanded;
+    setExpandedMap(m => ({ ...m, [item._id]: next }));
+    await axios.patch(`/api/collections/items/${item._id}/toggle`, { isExpanded: next });
+    qc.invalidateQueries(['collections']);
   };
 
-const handleDelete = async ()=>{
-  try {
-    await onDelete(item._id); 
-    queryClient.invalidateQueries({queryKey: ['collections']})
-  } catch (error) {
-    console.error('Ошибка уладения коллекции')
-  }
-}
+  const rename = async () => {
+    const newName = prompt('Новое имя', item.name);
+    if (!newName) return;
+    await axios.patch(`/api/collections/items/${item._id}/rename`, { name: newName });
+    qc.invalidateQueries(['collections']);
+  };
 
-const handleCreateItem = async () => {
-  try {
-    const { data } = await axios.post(
-      `/api/collections/${collectionId}/items`,
-      {
-        name: 'New Item',
-        type: 'request',
-        parentId: newItemParent // Используем сохраненный parentId
-      }
-    );
-    
-    queryClient.setQueryData(['collections'], prev => 
-      prev.map(coll => 
-        coll._id === collectionId 
-          ? { ...coll, items: [...coll.items, data] } 
-          : coll
-      )
-    );
-  } catch (error) {
-    console.error('Error creating item:', error);
-  }
-};
+  const remove = async () => {
+    await onDelete(item._id);
+    qc.invalidateQueries(['collections']);
+  };
 
   return (
-    <Draggable 
-      key={item._id}
-      draggableId={String(item._id)} 
-      index={index}
-    >
-      {(provided, snapshot) => (
+    <Draggable draggableId={String(item._id)} index={index}>
+      {prov => (
         <div
-      {...provided.draggableProps}
-      ref={provided.innerRef}
-      style={{
-        ...provided.draggableProps.style,
-        paddingLeft: depth * 32,
-      }}
+          ref={prov.innerRef}
+          {...prov.draggableProps}
+          style={{ paddingLeft: depth * 24, ...prov.draggableProps.style }}
         >
-          <ListItem
-            {...provided.dragHandleProps}
-            sx={{
-              bgcolor: 'background.paper',
-              mb: 0.5,
-              borderRadius: 2,
-              border: '1px solid #eee',
-            }}
-          >
-            {item.type === 'folder' && (
-              <IconButton onClick={handleToggle} size="small">
+          <ListItem {...prov.dragHandleProps} divider>
+            {isFolder && (
+              <IconButton size="small" onClick={toggle}>
                 {isExpanded ? <ExpandLess /> : <ExpandMore />}
               </IconButton>
             )}
-            
-            {item.type === 'folder' ? (
-              <Folder sx={{ color: '#ffb74d', mx: 1 }} />
-            ) : (
-              <InsertDriveFile sx={{ color: '#64b5f6', mx: 1 }} />
-            )}
-
+            {isFolder ? <Folder sx={{ mr: 1 }} /> : <InsertDriveFile sx={{ mr: 1 }} />}
             <ListItemText
               primary={item.name}
-              secondary={item.type === 'request' ? `${item.request?.method || 'GET'} ${item.request?.url || ''}` : 'Папка'}
+              secondary={
+                item.type === 'request' && item.request
+                  ? `${item.request.method || ''} ${item.request.url || ''}`.trim()
+                  : 'Папка'
+              }
             />
-
-            {item.type === 'folder' &&(
-              <IconButton onClick={()=>{setNewItemDialogOpen(true); setNewItemParent(item._id)}}>
-              <Add fontSize="small"/>
+            {isFolder && (
+              <IconButton size="small" onClick={() => onAddItem(item._id)}>
+                <Add />
               </IconButton>
             )}
-
-            <IconButton onClick={(e) => setMenuOpen(e.currentTarget)}>
+            <IconButton size="small" onClick={e => setMenuAnchor(e.currentTarget)}>
               <MoreVert />
             </IconButton>
+            <Menu
+              anchorEl={menuAnchor}
+              open={Boolean(menuAnchor)}
+              onClose={() => setMenuAnchor(null)}
+            >
+              <MenuItem onClick={rename}>
+                <Edit sx={{ mr: 1 }} />Переименовать
+              </MenuItem>
+              <MenuItem onClick={remove}>
+                <Delete sx={{ mr: 1 }} />Удалить
+              </MenuItem>
+            </Menu>
           </ListItem>
 
-          <Menu
-            anchorEl={menuOpen}
-            open={Boolean(menuOpen)}
-            onClose={() => setMenuOpen(null)}
-            disabledPortal
-            disabledScrollLock
-            MenuListProps={{'aria-labelledby': 'basic-button',}}
-            componentsProps={{backdrop: {
-              sx: {
-                backgroundColor: 'transparent'
-              }
-            }}}>
-            <MenuItem onClick={handleRename}>
-              <Edit sx={{ mr: 1 }} /> Переименовать
-            </MenuItem>
-            <MenuItem onClick={handleDelete}>
-              <Delete sx={{ mr: 1 }} /> Удалить
-            </MenuItem>
-          </Menu>
-
-          {item.type === 'folder' && isExpanded && (
-            <Droppable 
-              droppableId={item._id.toString()} 
-              type="ITEM"
-              direction="vertical"
-            >
-              {(provided) => (
-                <div 
-                  {...provided.droppableProps} 
-                  ref={provided.innerRef}
-                  style={{ paddingLeft: 16 }}
-                >
-                  {isExpanded && item.children?.map((child, index) => (
-                    <CollectionTreeItem
+          {isFolder && isExpanded && Array.isArray(item.children) && (
+            <Droppable droppableId={String(item._id)} type="ITEM">
+              {provDrop => (
+                <div ref={provDrop.innerRef} {...provDrop.droppableProps}>
+                  {item.children.map((child, idx) => (
+                    <TreeItem
                       key={child._id}
                       item={child}
-                      index={index}
+                      index={idx}
                       depth={depth + 1}
                       collectionId={collectionId}
                       onDelete={onDelete}
+                      onAddItem={onAddItem}
+                      expandedMap={expandedMap}
+                      setExpandedMap={setExpandedMap}
                     />
                   ))}
-                  {provided.placeholder}
+                  {provDrop.placeholder}
                 </div>
               )}
             </Droppable>
@@ -196,172 +163,94 @@ const handleCreateItem = async () => {
       )}
     </Draggable>
   );
+}
+TreeItem.propTypes = {
+  item: PropTypes.object.isRequired,
+  index: PropTypes.number.isRequired,
+  depth: PropTypes.number.isRequired,
+  collectionId: PropTypes.string.isRequired,
+  onDelete: PropTypes.func.isRequired,
+  onAddItem: PropTypes.func.isRequired,
+  expandedMap: PropTypes.object.isRequired,
+  setExpandedMap: PropTypes.func.isRequired
 };
 
-export const CollectionTree = ({ collection, onDelete, onSelect }) => {
-const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
-const [items, setItems]=useState([]);
-const [localItems, setLocalItems]=useState(collection?.items || []);
-const [forceUpdate, setForceUpdate] = useState(false);
-const queryClient = useQueryClient();
+// Главный компонент
+export function CollectionTree({ collection, onDelete }) {
+  const qc = useQueryClient();
+  const [expandedMap, setExpandedMap] = useState({});
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [pendingParentId, setPendingParentId] = useState(null);
 
-
-
-  if(!collection){
-    return <Typography>Коллекция не загружена</Typography>;
-    return null;
-  }
-
-  if(!collection?.items) return <Typography>Коллекция пуста</Typography>
-
-const { mutate: deleteItem } = useMutation({
-  mutationFn: (itemId) => axios.delete(`/api/collections/items/${itemId}`),
-  onSuccess: (_, itemId) => {
-    queryClient.setQueryData(['collections'], prev => 
-      prev.map(coll => ({
-        ...coll,
-        items: coll.items.filter(item => item._id !== itemId)
-      }))
+  const handleAddItem = parentId => {
+    setPendingParentId(parentId);
+    setDialogOpen(true);
+  };
+  const handleCreate = async ({ name, type }) => {
+    await axios.post(
+      `/api/collections/${collection._id}/items`,
+      { name, type, parentId: pendingParentId }
     );
-  }
-});
-
-const { mutate: renameItem } = useMutation({
-  mutationFn: ({ itemId, name }) => 
-    axios.patch(`/api/collections/items/${itemId}/rename`, { name }),
-  onSuccess: (data) => {
-    queryClient.setQueryData(['collections'], prev => 
-      prev.map(coll => ({
-        ...coll,
-        items: coll.items.map(item => 
-          item._id === data._id ? data : item
-        )
-      }))
-    );
-  }
-});
-
-
-  // автоматическое обновление
-  const {data: updatedCollection}=useQuery({
-    queryKey: ['collection', collection._id],
-    queryFn: async()=>{
-      const {data} = await axios.get(`/api/collections/${collection._id}`);
-      return data;
-    },
-    initialDataUpdatedAtL: ()=>Date.now(),
-  })
-
-  useEffect(() => {
-    const loadItems = async () => {
-      try {
-        const { data } = await axios.get(`/api/collections/${collection._id}/items`);
-        setLocalItems(data);
-      } catch (error) {
-        console.error('Error loading items:', error);
-      }
-    };
-    
-    if (collection?._id) {
-      loadItems();
-    }
-  }, [collection]);
-
-
-const handleDragEnd = async (result) => {
-  const { source, destination } = result;
-
-  if (!destination || 
-    (source.droppableId === destination.droppableId &&
-     source.index === destination.index)
-  ) {
-    return;
-  }
-
-  try {
-    const newItems = [...localItems];
-    const [movedItem] = newItems.splice(source.index, 1);
-    newItems.splice(destination.index, 0, movedItem);
-
-    // Оптимистичное обновление
-    setLocalItems(newItems);
-
-    // Подготовка данных для запроса
-    const updateData = {
-      items: newItems.map((item, index) => ({
-        id: item._id,
-        order: index,
-        parentId: destination.droppableId === collection._id ? null : destination.droppableId
-      }))
-    };
-
-    const response = await axios.patch(
+    qc.invalidateQueries(['collections']);
+    setDialogOpen(false);
+    setPendingParentId(null);
+  };
+  const handleDragEnd = async ({ source, destination, draggableId }) => {
+    if (!destination) return;
+    const newParentId =
+      destination.droppableId === String(collection._id) ? null : destination.droppableId;
+    await axios.patch(
       `/api/collections/${collection._id}/reorder`,
-      updateData,
-      {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
-      }
+      { items: [{ id: draggableId, parentId: newParentId, order: destination.index }] }
     );
+    qc.invalidateQueries(['collections']);
+  };
 
-    // Синхронизация с актуальными данными сервера
-    queryClient.setQueryData(['collections'], prev => 
-      prev.map(coll => 
-        coll._id === collection._id 
-          ? { ...coll, items: response.data.items } 
-          : coll
-      )
-    );
-
-  } catch (error) {
-    // Откат изменений при ошибке
-    setLocalItems([...localItems]);
-    console.error('Reorder failed:', error);
-    alert(`Ошибка: ${error.response?.data?.message || error.message}`);
-  }
-};
   return (
-    <Box sx={{position: 'relative'}}>
-      <Box sx={{display: 'flex', alignItems: 'center'}}>
-        <Typography>{collection?.name || 'Без названия'}</Typography>
-        <IconButton onClick={()=>setNewItemDialogOpen(true)} size="small" sx={{ml: 'auto'}}>
-          <Add/>
+    <Box>
+      <Box display="flex" justifyContent="space-between" mb={1} alignItems="center">
+        <Typography variant="h6">{collection.name}</Typography>
+        <IconButton size="small" onClick={() => handleAddItem(null)}>
+          <Add />
         </IconButton>
       </Box>
 
-    <DragDropContext onDragEnd={handleDragEnd}>
-      <Droppable droppableId={collection._id}>
-        {(provided) => (
-          <Box {...provided.droppableProps} ref={provided.innerRef} sx={{flex: 1}}>
-{collection.items?.map((item, index) => (
-    <CollectionTreeItem
-    key={item._id}
-    item={item}
-    index={index}
-    depth={0}
-    collectionId={collection._id}
-    onDelete={deleteItem}
-  />
-            ))}
-            {provided.placeholder}
-            <Button variant="outlined" startIcon={<Add/>} onClick={()=>setNewItemDialogOpen(true)} sx={{mt:1, mx:2}}>Новый элемент</Button>
-          </Box>
-        )}
-      </Droppable>
-    </DragDropContext>
-      </Box>
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId={String(collection._id)} type="ITEM">
+          {prov => (
+            <div ref={prov.innerRef} {...prov.droppableProps}>
+              {Array.isArray(collection.items) && collection.items.map((item, idx) => (
+                <TreeItem
+                  key={item._id}
+                  item={item}
+                  index={idx}
+                  depth={0}
+                  collectionId={collection._id}
+                  onDelete={onDelete}
+                  onAddItem={handleAddItem}
+                  expandedMap={expandedMap}
+                  setExpandedMap={setExpandedMap}
+                />
+              ))}
+              {prov.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
+
+      <NewItemDialog
+        open={dialogOpen}
+        onClose={() => { setDialogOpen(false); setPendingParentId(null); }}
+        onCreate={handleCreate}
+      />
+    </Box>
   );
-};
-
-
-CollectionTree.PropTypes={
-  collection: PropTypes.shape({
-    _id: PropTypes.string,
-    name: PropTypes.string,
-    items: PropTypes.array,
-  }),
-  onDelete: PropTypes.func,
-  onSelect: PropTypes.func,
 }
+CollectionTree.propTypes = {
+  collection: PropTypes.shape({
+    _id: PropTypes.string.isRequired,
+    name: PropTypes.string,
+    items: PropTypes.arrayOf(PropTypes.object)
+  }).isRequired,
+  onDelete: PropTypes.func.isRequired
+};

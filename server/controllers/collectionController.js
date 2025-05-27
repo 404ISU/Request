@@ -1,26 +1,25 @@
 const Collection = require('../models/Collection');
 const CollectionItem = require('../models/CollectionItem');
 
-      // преобразование для древовоидной структуры
-exports.getCollections = async (req, res) => {
+ exports.getCollections = async (req, res) => {
   try {
     const collections = await Collection.find()
       .populate({
         path: 'items',
-        select: 'name type parentId order request',
+        select: 'name type parentId order request isExpanded',
         options: { sort: { order: 1 } }
       })
       .lean();
 
-    // Убираем дубликаты коллекций
+    // убираем дубликаты и строим дерево
     const uniqueCollections = collections.filter(
       (v, i, a) => a.findIndex(t => t._id.toString() === v._id.toString()) === i
     );
 
-    // Строим древовидную структуру
-    const buildTree = (items, parentId = null) => 
+    const buildTree = (items, parentId = null) =>
       items
         .filter(item => String(item.parentId) === String(parentId))
+        .sort((a, b) => (a.order || 0) - (b.order || 0))
         .map(item => ({
           ...item,
           children: buildTree(items, item._id)
@@ -28,12 +27,13 @@ exports.getCollections = async (req, res) => {
 
     const transformed = uniqueCollections.map(c => ({
       ...c,
+      // здесь items уже древовидно вложены
       items: buildTree(c.items || [])
     }));
 
-    res.status(200).json(transformed);
+    return res.status(200).json(transformed);
   } catch (err) {
-    res.status(500).json({ message: 'Ошибка сервера' });
+    return res.status(500).json({ message: 'Ошибка сервера' });
   }
 };
 

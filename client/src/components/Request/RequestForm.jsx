@@ -492,22 +492,12 @@ const { mutate: deleteItem } = useMutation({
               </IconButton>
             </Box>
 
-
-            {collections.map(collection=>(
-              <Box
-              key={collection._id}
-              sx={{p:1, mb:2, cursor:'pointer', bgcolor: requestState.collectionId === collection._id ? 'action.selected' : 'inherit', borderRadius: 1}}
-              onClick={()=>handleCollectionSelect(collection._id)}>
-                <Typography>{collection.name}</Typography>
-              </Box>
-            ))}
-
             <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={collections}>
                 {collections?.map(collection => (
                   <CollectionTree
-                    key={collection._id || 'new-collection'}
-                    collection={collection || {}}
+                    key={collection._id}
+                    collection={collection}
                     onSelect={handleRequestSelect}
                     onContextMenu={(e) => setCollectionsMenu(e.currentTarget)}
                     selected={requestState.collectionId === collection._id}
@@ -740,11 +730,11 @@ const { mutate: deleteItem } = useMutation({
             if(name) createCollection(name);
             setCollectionsMenu(null);
           }}>Новая коллекции</MenuItem>
-          <MenuItem onClick={()=>{
+          {/* <MenuItem onClick={()=>{
             setNewItemDialogOpen(true); setCollectionsMenu(null);
           }}>
             Новый элемент
-          </MenuItem>
+          </MenuItem> */}
 
       </Menu>
           <Portal>
