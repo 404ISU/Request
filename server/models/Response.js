@@ -7,7 +7,12 @@ const responseSchema = new mongoose.Schema({
   body: String, // Теперь строка!
   headers: mongoose.Schema.Types.Mixed,
   timestamp: { type: Date, default: Date.now }, // Время получения ответа
-  latency: Number
-});
+  latency: Number,
+  wsSession: {
+    duration: Number,
+    messageCount: Number,
+    connectionCount: Number
+  }
+}, { timestamps: true });
 
 module.exports = mongoose.model('Response', responseSchema);

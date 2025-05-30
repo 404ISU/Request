@@ -41,7 +41,8 @@ import {
   CollectionsBookmark,
   Edit,
   Delete,
-  MoreVert
+  MoreVert,
+  WifiTetheringRounded
 } from '@mui/icons-material';
 import {
   DndContext,
@@ -70,6 +71,7 @@ import ResponseDisplay from './Response/ResponseDisplay';
 import QueryParamsInput from './Api/QueryParamsInput';
 import EnvironmentVariables from './Api/EnvironmentVariables';
 import AuthInput from './Api/AuthInput';
+import WebSocketClient from './webSocket/WebSocketClient';
 
 
 
@@ -510,16 +512,22 @@ const { mutate: deleteItem } = useMutation({
           </Paper>
         </Grid>
 
-        {/* Основная форма */}
-  <Grid item xs={12} md={6} lg={5}>
-          <StyledPaper>
+        <Grid item xs={12} md={9} lg={10} sx={{ height: '120vh', display: 'flex', flexDirection: 'column' }}>
+        <StyledPaper     sx={{
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      p: 0
+    }}>
             <Tabs 
               value={activeTab} 
               onChange={(_, v) => setActiveTab(v)}
-              sx={{ 
-                mb: 2,
-                '& .MuiTabs-indicator': { height: 2 }
-              }}
+      sx={{
+        px: 2,
+        borderBottom: '1px solid',
+        borderColor: 'divider',
+        '& .MuiTabs-indicator': { height: 2 }
+      }}
             >
               <Tab 
                 label="Запрос" 
@@ -530,15 +538,26 @@ const { mutate: deleteItem } = useMutation({
                 label="История" 
                 icon={<HistoryRounded fontSize="small" />} 
                 sx={{ minHeight: 48 }}
-              />
+              />             
+              <Tab label="WebSocket" icon={<WifiTetheringRounded fontSize="small" />}/>
               <Tab 
                 label="Настройки" 
                 icon={<SettingsRounded fontSize="small" />} 
                 sx={{ minHeight: 48 }}
               />
-            </Tabs>
 
-            {activeTab === 0 ? (
+            </Tabs>  
+              
+{activeTab === 2 ? (
+   <Box sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
+      <WebSocketClient collectionId={requestState.collectionId} />
+ </Box>
+):(
+  <Grid container spacing={3} sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
+   {/* Основная форма */}
+              <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
+<StyledPaper sx={{ height: '100%', p: 2, display: 'flex', flexDirection: 'column' }}>
+                        {activeTab === 0 ? (
               <Stack spacing={3} sx={{ flex: 1 }}>
                 <SectionHeader
                   title="Настройка запроса"
@@ -618,7 +637,7 @@ const { mutate: deleteItem } = useMutation({
                 </AnimatedButton>
               </Stack>
             ) : activeTab === 1 ? (
-              <Stack spacing={1} sx={{ maxHeight: '70vh', overflow: 'auto' }}>
+              <Stack spacing={1} sx={{ flex: 1, overflow: 'auto' }}>
                 {loadingHistory ? (
                   <LinearProgress />
                 ) : requestHistory.length === 0 ? (
@@ -666,17 +685,16 @@ const { mutate: deleteItem } = useMutation({
                 )}
               </Stack>
             ) : (
-              <EnvironmentVariables 
+                <EnvironmentVariables 
                 variables={envVars} 
-                onChange={setEnvVars} 
-              />
+                onChange={setEnvVars} />
             )}
           </StyledPaper>
         </Grid>
 
-        {/* Ответ */}
-  <Grid item xs={12} md={3} lg={5} sx={{ height: '100%' }}>
-          <StyledPaper sx={{ p: 0 }}>
+    {/* Ответ */}
+  <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
+          <StyledPaper sx={{ height: '100%', p: 0 }}>
             <Stack 
               direction="row" 
               alignItems="center" 
@@ -720,8 +738,11 @@ const { mutate: deleteItem } = useMutation({
             )}
           </StyledPaper>
         </Grid>
+  </Grid>
+)}</StyledPaper>
       </Grid>
 
+        </Grid>
 
       {/* Меню управления коллекциями */}
       <Menu anchorEl={collectionsMenu} open={Boolean(collectionsMenu)} onClose={()=>setCollectionsMenu(null)} MenuListProps={{'aria-labelledby': 'collections-menu-button'}}>

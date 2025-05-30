@@ -13,7 +13,29 @@ const requestSchema = new mongoose.Schema({
   collection: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Collection'
+  },
+type: {
+    type: String,
+    enum: ['HTTP', 'WEBSOCKET'],
+    default: 'HTTP'
+  },
+  wsSession: {
+    sessionId: String,
+    connections: [{
+      connectionId: String,
+      url: String,
+      protocols: [String],
+      headers: mongoose.Schema.Types.Mixed
+    }],
+    messages: [{
+      content: String,
+      direction: {
+        type: String,
+        enum: ['INCOMING', 'OUTGOING', 'SYSTEM', 'ERROR']
+      },
+      timestamp: Date
+    }]
   }
-});
+}, {timestamps: true});
 
 module.exports = mongoose.model('Request', requestSchema);
