@@ -11,12 +11,12 @@ export default function MessageList({ messages }) {
       </Box>
       <List sx={{ maxHeight: 'calc(100% - 40px)', overflow: 'auto' }}>
         {messages.map(m => (
-          <ListItem key={m.id} sx={{ mb: 1, borderRadius: 1, bgcolor: m.direction === 'incoming' ? 'action.selected' : 'action.hover' }}>
+          <ListItem key={m.id} sx={{ mb: 1, borderRadius: 1, bgcolor: m.direction === 'INCOMING' ? 'action.selected' : 'action.hover' }}>
             <ListItemText
               primary={
                 <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                   <Typography variant="body2" fontWeight="bold">
-                    {m.direction === 'incoming' ? 'Получено' : 'Отправлено'}
+                    {m.direction === 'INCOMING' ? 'Получено' : 'Отправлено'}
                   </Typography>
                   <Typography variant="caption">
                     {new Date(m.timestamp).toLocaleTimeString()}

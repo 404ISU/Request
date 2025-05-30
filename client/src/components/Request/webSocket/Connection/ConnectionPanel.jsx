@@ -80,7 +80,7 @@ export default function ConnectionPanel({
             const msg = {
               id: uuidv4(),
               content,
-              direction: 'outgoing',
+              direction: 'OUTGOING',
               timestamp: Date.now(),
               type: (() => {
                 try { JSON.parse(content); return 'json'; }
