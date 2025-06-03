@@ -2,9 +2,9 @@ const mongoose = require('mongoose');
 const { Schema } = mongoose;
 
 const WebsocketSessionSchema = new Schema({
-  userId:        { type: Schema.Types.ObjectId, ref: 'User', required: true },
-  connectionId:  { type: String, required: true, unique: true },
-  name:          { type: String },
+  userId:{ type: Schema.Types.ObjectId, ref: 'User', required: true },
+  connectionId:{ type: String, required: true, unique: true },
+  name:{ type: String },
   url:           { type: String, required: true },
   protocols:     [String],
   headers:       { type: Map, of: String },

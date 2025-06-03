@@ -11,7 +11,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@artilleryio/int-core": "^2.18.0",
     "@fastify/websocket": "^11.1.0",
+    "@grpc/grpc-js": "^1.13.4",
+    "artillery": "^2.0.23",
+    "artillery-core": "^4.8.1",
     "axios": "^1.7.9",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^2.4.3",
@@ -20,11 +24,16 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-validator": "^7.2.1",
+    "helmet": "^8.1.0",
     "joi": "^17.13.3",
+    "jsonpath": "^1.1.1",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.4",
+    "node-worker-threads-pool": "^1.5.1",
     "nodemailer": "^6.10.0",
+    "path": "^0.12.7",
     "uuid": "^11.1.0",
+    "vm": "^0.1.0",
     "ws": "^8.18.2"
   },
   "devDependencies": {

@@ -1,5 +1,7 @@
+// src/components/RequestForm.jsx
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
+import {
   Container,
   Grid,
   Stack,
@@ -26,44 +28,33 @@ import {
   TextField,
   Box,
   Menu,
-  Portal 
+  Portal
 } from '@mui/material';
 import {
   SendRounded,
   HistoryRounded,
   SettingsRounded,
   CodeRounded,
-  ContentCopyRounded,
   ReplayRounded,
   ExpandMoreRounded,
-  Folder,
-  Add,
   CollectionsBookmark,
-  Edit,
-  Delete,
-  MoreVert,
-  WifiTetheringRounded
+  Add,
+  WifiTetheringRounded,
+  BugReportRounded
 } from '@mui/icons-material';
 import {
   DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
+  closestCenter
 } from '@dnd-kit/core';
 import {
-  SortableContext,
-  verticalListSortingStrategy,
-  arrayMove,
-  useSortable,
+  SortableContext
 } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { styled, keyframes } from '@mui/material/styles';
 import axios from 'axios';
 import { CollectionTree } from './Collections/CollectionTree';
 import ApiInput from './Api/ApiInput';
+import AssertionsInput from './Api/AssertionsInput';
 import MethodSelector from './Api/MethodSelector';
 import HeadersInput from './Api/HeadersInput';
 import BodyInput from './Api/BodyInput';
@@ -72,9 +63,7 @@ import QueryParamsInput from './Api/QueryParamsInput';
 import EnvironmentVariables from './Api/EnvironmentVariables';
 import AuthInput from './Api/AuthInput';
 import WebSocketClient from './webSocket/WebSocketClient';
-
-
-
+import TestsTab from './Tests/TestsTab';
 
 const pulse = keyframes`
   0% { opacity: 1; }
@@ -105,6 +94,8 @@ const AnimatedButton = styled(Button)({
 const RequestForm = () => {
   const theme = useTheme();
   const queryClient = useQueryClient();
+
+  // === Состояния ===
   const [activeTab, setActiveTab] = useState(0);
   const [requestState, setRequestState] = useState({
     method: 'GET',
@@ -117,10 +108,12 @@ const RequestForm = () => {
   });
   const [collectionsMenu, setCollectionsMenu] = useState(null);
   const [apiUrl, setApiUrl] = useState('');
+  const [assertions, setAssertions] = useState([]);             // массив проверок
+  const [assertionResults, setAssertionResults] = useState([]); // результаты проверок
   const [method, setMethod] = useState('GET');
   const [headers, setHeaders] = useState('{}');
   const [body, setBody] = useState('');
-  const [response, setResponse] = useState(null);
+  const [response, setResponse] = useState(null);              // ответ сервера
   const [requestHistory, setRequestHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [queryParams, setQueryParams] = useState('{}');
@@ -134,12 +127,11 @@ const RequestForm = () => {
   });
   const [newCollectionDialogOpen, setNewCollectionDialogOpen] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState('');
-  const [contextMenu, setContextMenu] = useState(null);
   const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
-const [newItemType, setNewItemType]=useState('request');
-const [newItemName, setNewItemName]=useState('');
-  
+  const [newItemType, setNewItemType] = useState('request');
+  const [newItemName, setNewItemName] = useState('');
 
+  // === Загрузка истории запросов ===
   useEffect(() => {
     fetchRequestHistory();
   }, []);
@@ -148,164 +140,20 @@ const [newItemName, setNewItemName]=useState('');
     setLoadingHistory(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('/api/requests/history', {
-        headers: {
-           Authorization: `Bearer ${token}`
-        }
+      const resp = await axios.get('/api/requests/history', {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      const parsedRequests = response.data.map(parseServerRequest);
+      const parsedRequests = resp.data.map(parseServerRequest);
       setRequestHistory(parsedRequests);
-    } catch (error) {
-      console.error('Error fetching history:', error);
+    } catch (err) {
+      console.error('Error fetching history:', err);
       setError('Failed to load request history');
     } finally {
       setLoadingHistory(false);
     }
   };
 
-const handleCreateNewItem = async () => {
-  try {
-    const { data } = await axios.post(
-      `/api/collections/${requestState.collectionId}/items`,
-      {
-        name: newItemName.trim(),
-        type: newItemType,
-        parentId: null,
-        ...(newItemType === 'request' && {
-          request: {
-            method: 'GET',
-            url: '',
-            headers: {},
-            body: {},
-            queryParams: {}
-          }
-        })
-      }
-    );
-
-    queryClient.setQueryData(['collections'], prev => 
-      prev.map(coll => 
-        coll._id === requestState.collectionId
-          ? { ...coll, items: [...coll.items, data] }
-          : coll
-      )
-    );
-    
-    setNewItemDialogOpen(false);
-    setNewItemName('');
-  } catch (error) {
-    queryClient.invalidateQueries(['collections']);
-    setError(error.response?.data?.message || 'Ошибка создания элемента');
-  }
-};
-const { data: collections = [], isError, isLoading } = useQuery({
-  queryKey: ['collections'],
-  queryFn: async () => {
-    try {
-      const { data } = await axios.get('/api/collections', {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-      return data.map(c => ({
-        ...c,
-        items: c.items?.sort((a, b) => a.order - b.order) || []
-      }));
-    } catch (error) {
-      throw new Error(
-        error.response?.data?.message || 
-        'Ошибка загрузки коллекций'
-      );
-    }
-  },
-  retry: 1
-});
-
-// Добавьте отображение ошибки
-{isError && (
-  <Alert severity="error" sx={{ mb: 2 }}>
-    {error}
-  </Alert>
-)}
-
-
-  // создание коллекцийcollections
-const {mutate: createCollection} = useMutation({
-  mutationFn: (name)=> axios.post('/api/collections', {name}),
-  onSuccess: ()=>{
-    queryClient.invalidateQueries({
-      queryKey: ['collections'], // обновление списка
-      exact: true
-    });
-    setNewCollectionDialogOpen(false);
-    setNewCollectionName('');},
-    onError: (error)=>{
-      console.error('Ошибка создание коллекций', error)
-    }
-  }
-)
-
-// удаление коллекций
-const { mutate: deleteItem } = useMutation({
-  mutationFn: (itemId) => axios.delete(`/api/collections/items/${itemId}`),
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ['collections'] });
-  },
-  onError: (error) => {
-    console.error('Ошибка при удалении:', error);
-  }
-});
-
-  const saveRequest = useMutation({
-    mutationFn: async (item) => {
-      const endpoint = item._id 
-        ? `/api/collections/items/${item._id}`
-        : `/api/collections/${requestState.collectionId}/items`;
-      
-      const { data } = await axios[endpoint ? 'put' : 'post'](endpoint, item);
-      return data;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['collections'] })
-  });
-
-  // Обработчики коллекций
-  const handleCollectionSelect = (collectionId) => {
-    setRequestState(prev => ({ ...prev, collectionId, itemId: null }));
-  };
-
-  const handleRequestSelect = (item) => {
-    if (item.type === 'request') {
-      setRequestState({
-        ...item.request,
-        headers: JSON.stringify(item.headers, null, 2),
-        body: JSON.stringify(item.body, null, 2),
-        queryParams: JSON.stringify(item.queryParams, null, 2),
-        collectionId: item.collectionId,
-        itemId: item.id
-      });
-    }
-  };
-
-  // Drag and Drop
-  const handleDragEnd = useCallback(async ({ active, over }) => {
-    if (!over || active.id === over.id) return;
-
-    try {
-      await axios.patch(`/api/collections/${requestState.collectionId}/reorder`, {
-        itemId: active.id,
-        newParentId: over.id,
-        newIndex: over.data.current.sortable.index
-      });
-      queryClient.invalidateQueries(['collections']);
-    } catch (error) {
-      console.error('Reorder error:', error);
-    }
-  }, [requestState.collectionId]);
-  const applyEnvVariables = (url) => {
-    return envVars.reduce((acc, { key, value }) => 
-      acc.replace(`{{${key}}}`, encodeURIComponent(value || '')), url);
-  };
-
+  // === Утилиты для парсинга ===
   const parseServerRequest = (serverRequest) => ({
     id: serverRequest._id,
     method: serverRequest.method,
@@ -325,7 +173,7 @@ const { mutate: deleteItem } = useMutation({
   const parseQueryString = (queryString) => {
     const params = new URLSearchParams(queryString);
     const result = {};
-    params.forEach((value, key) => result[key] = value);
+    params.forEach((value, key) => (result[key] = value));
     return result;
   };
 
@@ -340,20 +188,232 @@ const { mutate: deleteItem } = useMutation({
   const safeJSONParse = (str, defaultValue) => {
     try {
       return str ? JSON.parse(str) : defaultValue;
-    } catch (error) {
-      console.error('JSON Parse Error:', error);
+    } catch (err) {
+      console.error('JSON Parse Error:', err);
       return defaultValue;
     }
   };
 
+  const applyEnvVariables = (url) => {
+    return envVars.reduce(
+      (acc, { key, value }) => acc.replace(`{{${key}}}`, encodeURIComponent(value || '')),
+      url
+    );
+  };
+
+  // === Запуск функциональных проверок (assertions) ===
+  const runAssertions = (responseObj, latency, assertionsArray) => {
+    return assertionsArray.map(a => {
+      let actualValue;
+      switch (a.type) {
+        case 'status':
+          actualValue = responseObj.status;
+          break;
+        case 'body':
+          if (a.property) {
+            actualValue = a.property
+              .split('.')
+              .reduce((o, k) => (o || {})[k], responseObj.data);
+          } else {
+            actualValue = JSON.stringify(responseObj.data);
+          }
+          break;
+        case 'headers':
+          actualValue = responseObj.headers[a.property?.toLowerCase()];
+          break;
+        case 'responseTime':
+          actualValue = latency;
+          break;
+        default:
+          actualValue = undefined;
+      }
+
+      let passed = false;
+      const expected = a.expected;
+
+      switch (a.operator) {
+        case 'equals':
+          passed = actualValue == expected;
+          break;
+        case 'not equals':
+          passed = actualValue != expected;
+          break;
+        case 'contains':
+          passed = String(actualValue).includes(expected);
+          break;
+        case 'not contains':
+          passed = !String(actualValue).includes(expected);
+          break;
+        case 'greater than':
+          passed = Number(actualValue) > Number(expected);
+          break;
+        case 'less than':
+          passed = Number(actualValue) < Number(expected);
+          break;
+        case 'exists':
+          passed = actualValue !== undefined && actualValue !== null;
+          break;
+        case 'not exists':
+          passed = actualValue === undefined || actualValue === null;
+          break;
+        default:
+          passed = false;
+      }
+
+      return {
+        assertionId: a.id,
+        type: a.type,
+        operator: a.operator,
+        property: a.property,
+        actual: actualValue,
+        expected,
+        passed,
+        message: passed
+          ? 'Пройдено'
+          : `Ожидалось [${a.type} ${a.operator} "${expected}"], получили "${String(actualValue)}"`
+      };
+    });
+  };
+
+  // === Работа с коллекциями: создание / удаление / drag'n'drop ===
+  const handleCreateNewItem = async () => {
+    try {
+      const { data } = await axios.post(
+        `/api/collections/${requestState.collectionId}/items`,
+        {
+          name: newItemName.trim(),
+          type: newItemType,
+          parentId: null,
+          ...(newItemType === 'request' && {
+            request: {
+              method: 'GET',
+              url: '',
+              headers: {},
+              body: {},
+              queryParams: {}
+            }
+          })
+        }
+      );
+
+      queryClient.setQueryData(['collections'], prev =>
+        prev.map(coll =>
+          coll._id === requestState.collectionId
+            ? { ...coll, items: [...coll.items, data] }
+            : coll
+        )
+      );
+
+      setNewItemDialogOpen(false);
+      setNewItemName('');
+    } catch (err) {
+      queryClient.invalidateQueries(['collections']);
+      setError(err.response?.data?.message || 'Ошибка создания элемента');
+    }
+  };
+
+  const {
+    data: collections = [],
+    isError,
+    isLoading
+  } = useQuery({
+    queryKey: ['collections'],
+    queryFn: async () => {
+      try {
+        const { data } = await axios.get('/api/collections', {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        return data.map(c => ({
+          ...c,
+          items: c.items?.sort((a, b) => a.order - b.order) || []
+        }));
+      } catch (err) {
+        throw new Error(err.response?.data?.message || 'Ошибка загрузки коллекций');
+      }
+    },
+    retry: 1
+  });
+
+  const { mutate: createCollection } = useMutation({
+    mutationFn: (name) => axios.post('/api/collections', { name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['collections'], exact: true });
+      setNewCollectionDialogOpen(false);
+      setNewCollectionName('');
+    },
+    onError: (err) => console.error('Ошибка создание коллекций', err)
+  });
+
+  const { mutate: deleteItem } = useMutation({
+    mutationFn: (itemId) => axios.delete(`/api/collections/items/${itemId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['collections'] }),
+    onError: (err) => console.error('Ошибка при удалении:', err)
+  });
+
+  const saveRequest = useMutation({
+    mutationFn: async (item) => {
+      const endpoint = item._id
+        ? `/api/collections/items/${item._id}`
+        : `/api/collections/${requestState.collectionId}/items`;
+      const { data } = await axios[endpoint ? 'put' : 'post'](endpoint, item);
+      return data;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['collections'] })
+  });
+
+  const handleCollectionSelect = (collectionId) => {
+    setRequestState(prev => ({ ...prev, collectionId, itemId: null }));
+    setAssertions([]);            // сбрасываем assertions при смене коллекции
+    setAssertionResults([]);
+    setResponse(null);
+  };
+
+  const handleRequestSelect = (item) => {
+    if (item.type === 'request') {
+      setRequestState({
+        ...item.request,
+        headers: JSON.stringify(item.headers, null, 2),
+        body: JSON.stringify(item.body, null, 2),
+        queryParams: JSON.stringify(item.queryParams, null, 2),
+        collectionId: item.collectionId,
+        itemId: item.id
+      });
+      setAssertions([]);            // сбросить предыдущие assertions
+      setAssertionResults([]);
+      setResponse(null);
+    }
+  };
+
+  const handleDragEnd = useCallback(
+    async ({ active, over }) => {
+      if (!over || active.id === over.id) return;
+      try {
+        await axios.patch(
+          `/api/collections/${requestState.collectionId}/reorder`,
+          {
+            itemId: active.id,
+            newParentId: over.id,
+            newIndex: over.data.current.sortable.index
+          }
+        );
+        queryClient.invalidateQueries(['collections']);
+      } catch (err) {
+        console.error('Reorder error:', err);
+      }
+    },
+    [requestState.collectionId, queryClient]
+  );
+
+  // === Выполнение HTTP-запроса и вычисление результатов проверок ===
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    
+    setAssertionResults([]);
+
     try {
       const trimmedUrl = apiUrl.trim();
-      if (!trimmedUrl) throw new Error('Please enter a valid URL');
+      if (!trimmedUrl) throw new Error('Введите корректный URL');
 
       const parsedHeaders = safeJSONParse(headers, {});
       const parsedQuery = safeJSONParse(queryParams, {});
@@ -365,13 +425,9 @@ const { mutate: deleteItem } = useMutation({
       });
 
       const urlObj = new URL(finalUrl);
-      
-      Object.entries(parsedQuery).forEach(([key, value]) => {
-        if (value != null && value !== '') {
-          urlObj.searchParams.append(key, value);
-        }
+      Object.entries(parsedQuery).forEach(([k, v]) => {
+        if (v != null && v !== '') urlObj.searchParams.append(k, v);
       });
-
       const targetUrl = urlObj.toString();
 
       if (auth.type === 'bearer') {
@@ -381,13 +437,14 @@ const { mutate: deleteItem } = useMutation({
       }
 
       const startTime = Date.now();
-      const result = await axios.post('/api/requests/makeRequest', {
+      const res = await axios.post('/api/requests/makeRequest', {
         method: method.toLowerCase(),
         url: targetUrl,
         headers: parsedHeaders,
         data: parsedBody,
         validateStatus: () => true
       });
+      const latency = Date.now() - startTime;
 
       const newRequest = {
         id: Date.now(),
@@ -397,54 +454,55 @@ const { mutate: deleteItem } = useMutation({
         body: parsedBody,
         query: parsedQuery,
         response: {
-          status: result.status,
-          data: result.data,
-          headers: result.headers,
-          latency: Date.now() - startTime
+          status: res.status,
+          data: res.data,
+          headers: res.headers,
+          latency
         },
         timestamp: new Date().toISOString()
       };
 
-      // Автосохранение в коллекцию
+      // Запуск assertions
+      const results = runAssertions(
+        { status: res.status, data: res.data, headers: res.headers },
+        latency,
+        assertions
+      );
+      setAssertionResults(results);
+
+      // Автосохранение в коллекцию (если выбрана)
       if (requestState.collectionId) {
         saveRequest.mutate({
           ...requestState,
           response: {
-            status: response.status,
-            data: JSON.stringify(response.data),
-            headers: response.headers,
-            latency: response.latency
+            status: res.status,
+            data: JSON.stringify(res.data),
+            headers: res.headers,
+            latency
           }
         });
       }
 
       await fetchRequestHistory();
-
       setResponse(newRequest.response);
-
-    } catch (error) {
-      setError(error.message);
-      console.error('Request Error:', error);
+    } catch (err) {
+      setError(err.message);
+      console.error('Request Error:', err);
     } finally {
       setLoading(false);
     }
   };
 
-  // Функция для переключения секций
+  // === Переключение секций «Запрос» / «Расширенные» ===
   const toggleSection = (section) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
   };
 
-
-
   const SectionHeader = ({ title, icon, sectionKey }) => (
-    <Stack 
-      direction="row" 
-      alignItems="center" 
-      spacing={1} 
+    <Stack
+      direction="row"
+      alignItems="center"
+      spacing={1}
       onClick={() => toggleSection(sectionKey)}
       sx={{
         cursor: 'pointer',
@@ -453,41 +511,43 @@ const { mutate: deleteItem } = useMutation({
         '&:hover': { background: theme.palette.action.hover }
       }}
     >
-      <IconButton size="small">
-        {icon}
-      </IconButton>
+      <IconButton size="small">{icon}</IconButton>
       <Typography variant="subtitle1" fontWeight={600}>{title}</Typography>
-      <ExpandMoreRounded sx={{ 
-        transform: expandedSections[sectionKey] ? 'rotate(180deg)' : 'none',
-        transition: 'transform 0.2s',
-        ml: 'auto'
-      }}/>
+      <ExpandMoreRounded
+        sx={{
+          transform: expandedSections[sectionKey] ? 'rotate(180deg)' : 'none',
+          transition: 'transform 0.2s',
+          ml: 'auto'
+        }}
+      />
     </Stack>
   );
 
   const urlSuggestions = React.useMemo(
-    () => [...new Set(requestHistory
-      .map(req => req?.url)
-      .filter(Boolean))], 
+    () => [
+      ...new Set(
+        requestHistory.map(req => req?.url).filter(url => url)
+      )
+    ],
     [requestHistory]
   );
 
+  // === Рендер ===
   return (
     <Container maxWidth="xl" sx={{ py: 4, height: '100vh' }}>
-<Grid container spacing={3} sx={{ height: '100%' }}>
-
-       {/* Секция коллекций */}
-  <Grid item xs={12} md={3} lg={2}>
+      <Grid container spacing={3} sx={{ height: '100%' }}>
+        {/* ===== Секция коллекций ===== */}
+        <Grid item xs={12} md={3} lg={2}>
           <Paper sx={{ p: 2, height: '100%', overflow: 'auto' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
               <CollectionsBookmark sx={{ mr: 1 }} />
               <Typography variant="h6">Коллекции</Typography>
               <IconButton
-              aria-controls='collections-menu'
-              aria-haspopup="true"
-              aria-expanded={Boolean(collectionsMenu)}
-              id="collections-menu-button"
-          onClick={(e) => setCollectionsMenu(e.currentTarget)}
+                aria-controls="collections-menu"
+                aria-haspopup="true"
+                aria-expanded={Boolean(collectionsMenu)}
+                id="collections-menu-button"
+                onClick={e => setCollectionsMenu(e.currentTarget)}
                 sx={{ ml: 'auto' }}
               >
                 <Add />
@@ -501,10 +561,9 @@ const { mutate: deleteItem } = useMutation({
                     key={collection._id}
                     collection={collection}
                     onSelect={handleRequestSelect}
-                    onContextMenu={(e) => setCollectionsMenu(e.currentTarget)}
+                    onContextMenu={e => setCollectionsMenu(e.currentTarget)}
                     selected={requestState.collectionId === collection._id}
                     onDelete={deleteItem}
-                    
                   />
                 ))}
               </SortableContext>
@@ -512,280 +571,318 @@ const { mutate: deleteItem } = useMutation({
           </Paper>
         </Grid>
 
-        <Grid item xs={12} md={9} lg={10} sx={{ height: '120vh', display: 'flex', flexDirection: 'column' }}>
-        <StyledPaper     sx={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      p: 0
-    }}>
-            <Tabs 
-              value={activeTab} 
+        {/* ===== Основная область (форма + ответ) ===== */}
+        <Grid item xs={12} md={9} lg={10} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <StyledPaper sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 0 }}>
+            <Tabs
+              value={activeTab}
               onChange={(_, v) => setActiveTab(v)}
-      sx={{
-        px: 2,
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        '& .MuiTabs-indicator': { height: 2 }
-      }}
+              sx={{
+                px: 2,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
+                '& .MuiTabs-indicator': { height: 2 }
+              }}
             >
-              <Tab 
-                label="Запрос" 
-                icon={<CodeRounded fontSize="small" />} 
-                sx={{ minHeight: 48 }}
-              />
-              <Tab 
-                label="История" 
-                icon={<HistoryRounded fontSize="small" />} 
-                sx={{ minHeight: 48 }}
-              />             
-              <Tab label="WebSocket" icon={<WifiTetheringRounded fontSize="small" />}/>
-              <Tab 
-                label="Настройки" 
-                icon={<SettingsRounded fontSize="small" />} 
-                sx={{ minHeight: 48 }}
-              />
+              <Tab label="Запрос" icon={<CodeRounded fontSize="small" />} sx={{ minHeight: 48 }} />
+              <Tab label="История" icon={<HistoryRounded fontSize="small" />} sx={{ minHeight: 48 }} />
+              <Tab label="WebSocket" icon={<WifiTetheringRounded fontSize="small" />} sx={{ minHeight: 48 }} />
+              {/* <Tab label="Тесты" icon={<BugReportRounded fontSize="small" />} sx={{ minHeight: 48 }} />
+              <Tab label="Настройки" icon={<SettingsRounded fontSize="small" />} sx={{ minHeight: 48 }} /> */}
+            </Tabs>
 
-            </Tabs>  
-              
-{activeTab === 2 ? (
-   <Box sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
-      <WebSocketClient collectionId={requestState.collectionId} />
- </Box>
-):(
-  <Grid container spacing={3} sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
-   {/* Основная форма */}
-              <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
-<StyledPaper sx={{ height: '100%', p: 2, display: 'flex', flexDirection: 'column' }}>
-                        {activeTab === 0 ? (
-              <Stack spacing={3} sx={{ flex: 1 }}>
-                <SectionHeader
-                  title="Настройка запроса"
-                  icon={<SendRounded />}
-                  sectionKey="request"
-                />
-                
-                {expandedSections.request && (
-                  <Stack spacing={2}>
-                    <Grid container spacing={1} alignItems="center">
-                      <div item xs={3}>
-                        <MethodSelector 
-                          value={method} 
-                          onChange={setMethod} 
-                          fullWidth 
-                        />
-                      </div>
-                      <Grid item xs={9}>
-                        <ApiInput
-                          value={apiUrl}
-                          onChange={setApiUrl}
-                          onBlur={() => setApiUrl(apiUrl.trim())}
-                          suggestions={urlSuggestions}
-                        />
-                      </Grid>
-                    </Grid>
+            {/* === Если выбрана вкладка WebSocket (index 2) === */}
+            {activeTab === 2 ? (
+              <Box sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
+                <WebSocketClient collectionId={requestState.collectionId} />
+              </Box>
+            ) : (
+              <Grid container spacing={3} sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                {/* ===== Колонка «Форма & Тесты & Настройки» ===== */}
+                <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
+                  <StyledPaper sx={{ height: '100%', p: 2, display: 'flex', flexDirection: 'column' }}>
+                    {activeTab === 0 ? (
+                      /* === Вкладка «Запрос» === */
+                      <Stack spacing={3} sx={{ flex: 1 }}>
+                        <SectionHeader title="Настройка запроса" icon={<SendRounded />} sectionKey="request" />
 
-                    <Divider sx={{ my: 1 }} />
+                        {expandedSections.request && (
+                          <Stack spacing={2}>
+                            <Grid container spacing={1} alignItems="center">
+                              <div item xs={3}>
+                                <MethodSelector value={method} onChange={setMethod} fullWidth />
+                              </div>
+                              <Grid item xs={9}>
+                                <ApiInput
+                                  value={apiUrl}
+                                  onChange={setApiUrl}
+                                  onBlur={() => setApiUrl(apiUrl.trim())}
+                                  suggestions={urlSuggestions}
+                                />
+                              </Grid>
+                            </Grid>
 
-                    <SectionHeader
-                      title="Расширенные настройки"
-                      icon={<SettingsRounded />}
-                      sectionKey="advanced"
-                    />
+                            <Divider sx={{ my: 1 }} />
 
-                    {expandedSections.advanced && (
-                      <Stack spacing={2}>
-                        <AuthInput 
-                          value={auth} 
-                          onChange={setAuth} 
-                          compact 
+                            <SectionHeader title="Расширенные настройки" icon={<SettingsRounded />} sectionKey="advanced" />
+
+                            {expandedSections.advanced && (
+                              <Stack spacing={2}>
+                                <AuthInput value={auth} onChange={setAuth} compact />
+                                <QueryParamsInput value={queryParams} onChange={setQueryParams} />
+                                <HeadersInput value={headers} onChange={setHeaders} />
+                                <BodyInput value={body} onChange={setBody} method={method} />
+
+                                {/* ===== Блок AssertionsInput (функциональные проверки) ===== */}
+                                <AssertionsInput onChange={setAssertions} />
+                              </Stack>
+                            )}
+                          </Stack>
+                        )}
+
+                        <AnimatedButton
+                          fullWidth
+                          variant="contained"
+                          size="large"
+                          startIcon={<SendRounded />}
+                          onClick={handleSubmit}
+                          disabled={loading}
+                          sx={{
+                            mt: 'auto',
+                            py: 1.5,
+                            borderRadius: '12px',
+                            bgcolor: 'primary.light',
+                            '&:disabled': { animation: `${pulse} 1.5s infinite` }
+                          }}
+                        >
+                          {loading ? 'Загрузка...' : 'Выполнить запрос'}
+                        </AnimatedButton>
+                      </Stack>
+                    ) : activeTab === 1 ? (
+                      /* === Вкладка «История» === */
+                      <Stack spacing={1} sx={{ flex: 1, overflow: 'auto' }}>
+                        {loadingHistory ? (
+                          <LinearProgress />
+                        ) : requestHistory.length === 0 ? (
+                          <Typography color="text.secondary" sx={{ p: 2 }}>
+                            В истории запросов не найдено
+                          </Typography>
+                        ) : (
+                          requestHistory.map(req => (
+                            <Paper
+                              key={req.id}
+                              sx={{
+                                p: 1.5,
+                                cursor: 'pointer',
+                                '&:hover': { bgcolor: 'action.hover' },
+                                transition: 'all 0.2s'
+                              }}
+                              onClick={() => {
+                                setApiUrl(req.url);
+                                setMethod(req.method);
+                                setHeaders(JSON.stringify(req.headers, null, 2));
+                                setBody(req.body ? JSON.stringify(req.body, null, 2) : '');
+                                setQueryParams(JSON.stringify(req.query, null, 2));
+                                setResponse(req.response);
+                                setAssertions([]);            // сброс assertions
+                                setAssertionResults([]);
+                                setActiveTab(0);
+                              }}
+                            >
+                              <Stack direction="row" alignItems="center" spacing={1.5}>
+                                <Chip
+                                  label={req.method}
+                                  color={
+                                    req.response?.status >= 400
+                                      ? 'error'
+                                      : req.method === 'GET'
+                                      ? 'success'
+                                      : 'warning'
+                                  }
+                                  size="small"
+                                />
+                                <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                                  {req.url}
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {new Date(req.timestamp).toLocaleTimeString()}
+                                </Typography>
+                              </Stack>
+                            </Paper>
+                          ))
+                        )}
+                      </Stack>
+                    ) : activeTab === 3 ? (
+                      /* === Вкладка «Тесты» === */
+                      <TestsTab collectionId={requestState.collectionId} />
+                    ) : (
+                      /* === Вкладка «Настройки» === */
+                      <EnvironmentVariables variables={envVars} onChange={setEnvVars} />
+                    )}
+                  </StyledPaper>
+                </Grid>
+
+                {/* ===== Колонка «Ответ + Результаты проверок» ===== */}
+                <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
+                  <StyledPaper sx={{ height: '100%', p: 0 }}>
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
+                    >
+                      <Typography variant="subtitle1" fontWeight={600}>Ответ</Typography>
+                      {response?.status && (
+                        <Chip
+                          label={`${response.status} • ${response.latency}ms`}
+                          size="small"
+                          color={
+                            response.status >= 400
+                              ? 'error'
+                              : response.status >= 200
+                              ? 'success'
+                              : 'info'
+                          }
                         />
-                        <QueryParamsInput 
-                          value={queryParams} 
-                          onChange={setQueryParams} 
-                        />
-                        <HeadersInput 
-                          value={headers} 
-                          onChange={setHeaders} 
-                        />
-                        <BodyInput 
-                          value={body} 
-                          onChange={setBody} 
-                          method={method} 
-                        />
+                      )}
+                    </Stack>
+
+                    {loading ? (
+                      <LinearProgress sx={{ height: 2 }} />
+                    ) : response ? (
+                      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        {/* ===== Секция с JSON-ответом ===== */}
+                        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+                          <ResponseDisplay data={response.data} headers={response.headers} />
+                        </Box>
+
+                        {/* ===== Секция с результатами функциональных проверок ===== */}
+                        {assertionResults.length > 0 && (
+                          <Box sx={{ p: 2, borderTop: '1px solid #ddd', maxHeight: '200px', overflow: 'auto' }}>
+                            <Typography variant="subtitle2" gutterBottom>
+                              Результаты проверок ({assertionResults.length})
+                            </Typography>
+                            {assertionResults.map(res => (
+                              <Box
+                                key={res.assertionId}
+                                sx={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  bgcolor: res.passed ? 'success.light' : 'error.light',
+                                  color: res.passed ? 'success.dark' : 'error.dark',
+                                  p: 1,
+                                  mb: 1,
+                                  borderRadius: 1
+                                }}
+                              >
+                                <Typography variant="body2" sx={{ mr: 2, flex: 1 }}>
+                                  [{res.type} {res.operator} "{res.expected}"] ➔{' '}
+                                  {res.property ? `${res.property}: ` : ''}
+                                  {String(res.actual)}
+                                </Typography>
+                                <Typography variant="body2" fontWeight="bold">
+                                  {res.passed ? 'Пройдено' : 'Не пройдено'}
+                                </Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        )}
+                      </Box>
+                    ) : (
+                      <Stack
+                        spacing={2}
+                        sx={{
+                          height: '100%',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'text.secondary'
+                        }}
+                      >
+                        <ReplayRounded sx={{ fontSize: 48, opacity: 0.5 }} />
+                        <Typography variant="body2">Отправьте запрос, чтобы увидеть ответ</Typography>
                       </Stack>
                     )}
-                  </Stack>
-                )}
-
-                <AnimatedButton
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  startIcon={<SendRounded />}
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  sx={{
-                    mt: 'auto',
-                    py: 1.5,
-                    borderRadius: '12px',
-                    bgcolor: 'primary.light',
-                    '&:disabled': { animation: `${pulse} 1.5s infinite` }
-                  }}
-                >
-                  {loading ? 'Загрузка...' : 'Выполнить запрос'}
-                </AnimatedButton>
-              </Stack>
-            ) : activeTab === 1 ? (
-              <Stack spacing={1} sx={{ flex: 1, overflow: 'auto' }}>
-                {loadingHistory ? (
-                  <LinearProgress />
-                ) : requestHistory.length === 0 ? (
-                  <Typography color="text.secondary" sx={{ p: 2 }}>
-                    В истории запросов не найдено
-                  </Typography>
-                ) : (
-                  requestHistory.map((request) => (
-                    <Paper 
-                      key={request.id}
-                      sx={{
-                        p: 1.5,
-                        cursor: 'pointer',
-                        '&:hover': { bgcolor: 'action.hover' },
-                        transition: 'all 0.2s'
-                      }}
-                      onClick={() => {
-                        setApiUrl(request.url);
-                        setMethod(request.method);
-                        setHeaders(JSON.stringify(request.headers, null, 2));
-                        setBody(request.body ? JSON.stringify(request.body, null, 2) : '');
-                        setQueryParams(JSON.stringify(request.query, null, 2));
-                        setResponse(request.response);
-                        setActiveTab(0);
-                      }}
-                    >
-                      <Stack direction="row" alignItems="center" spacing={1.5}>
-                        <Chip
-                          label={request.method}
-                          color={
-                            request.response?.status >= 400                              ? 'error' : 
-                            request.method === 'GET' ? 'success' : 'warning'
-                          }
-                          size="small"
-                        />
-                        <Typography variant="body2" noWrap sx={{ flex: 1 }}>
-                          {request.url}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {new Date(request.timestamp).toLocaleTimeString()}
-                        </Typography>
-                      </Stack>
-                    </Paper>
-                  ))
-                )}
-              </Stack>
-            ) : (
-                <EnvironmentVariables 
-                variables={envVars} 
-                onChange={setEnvVars} />
+                  </StyledPaper>
+                </Grid>
+              </Grid>
             )}
+
           </StyledPaper>
         </Grid>
-
-    {/* Ответ */}
-  <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
-          <StyledPaper sx={{ height: '100%', p: 0 }}>
-            <Stack 
-              direction="row" 
-              alignItems="center" 
-              spacing={1} 
-              sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
-            >
-              <Typography variant="subtitle1" fontWeight={600}>Ответ</Typography>
-              {response?.status && (
-                <Chip 
-                  label={`${response.status} • ${response.latency}ms`} 
-                  size="small"
-                  color={
-                    response.status >= 400 ? 'error' : 
-                    response.status >= 200 ? 'success' : 'info'
-                  }
-                />
-              )}
-            </Stack>
-
-            {loading ? (
-              <LinearProgress sx={{ height: 2 }} />
-            ) : response ? (
-              <ResponseDisplay 
-                data={response.data} 
-                headers={response.headers}
-                sx={{ height: 'calc(100% - 48px)', overflow: 'auto', p: 2 }}
-              />
-            ) : (
-              <Stack 
-                spacing={2} 
-                sx={{ 
-                  height: '100%', 
-                  alignItems: 'center', 
-                  justifyContent: 'center',
-                  color: 'text.secondary'
-                }}
-              >
-                <ReplayRounded sx={{ fontSize: 48, opacity: 0.5 }} />
-                <Typography variant="body2">Отправьте запрос что бы увидеть ответ</Typography>
-              </Stack>
-            )}
-          </StyledPaper>
-        </Grid>
-  </Grid>
-)}</StyledPaper>
       </Grid>
 
-        </Grid>
-
-      {/* Меню управления коллекциями */}
-      <Menu anchorEl={collectionsMenu} open={Boolean(collectionsMenu)} onClose={()=>setCollectionsMenu(null)} MenuListProps={{'aria-labelledby': 'collections-menu-button'}}>
-          <MenuItem onClick={()=>{
-            const name =prompt('Введите название коллекции');
-            if(name) createCollection(name);
+      {/* ===== Меню управления коллекциями ===== */}
+      <Menu
+        anchorEl={collectionsMenu}
+        open={Boolean(collectionsMenu)}
+        onClose={() => setCollectionsMenu(null)}
+        MenuListProps={{ 'aria-labelledby': 'collections-menu-button' }}
+      >
+        <MenuItem
+          onClick={() => {
+            const name = prompt('Введите название коллекции');
+            if (name) createCollection(name);
             setCollectionsMenu(null);
-          }}>Новая коллекции</MenuItem>
-          {/* <MenuItem onClick={()=>{
-            setNewItemDialogOpen(true); setCollectionsMenu(null);
-          }}>
-            Новый элемент
-          </MenuItem> */}
-
+          }}
+        >
+          Новая коллекция
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            setNewItemDialogOpen(true);
+            setCollectionsMenu(null);
+          }}
+        >
+          Новый элемент
+        </MenuItem>
       </Menu>
-          <Portal>
-<Dialog open={newItemDialogOpen} onClose={()=>setNewItemDialogOpen(false)} role="dialog" aria-labelledby='new-item-dialog-title' aria-modal="true" disableEnforceFocus  disablePortal       disableScrollLock  componentsProps={{backdrop:{
-  style: {pointerEvents: 'none'}
-}}}>
-      <DialogTitle id="new-item-dialog">
-        Создать новый элемент
-      </DialogTitle>
-            <DialogContent>
-              <Select
+
+      {/* ===== Диалог «Новый элемент» ===== */}
+      <Portal>
+        <Dialog
+          open={newItemDialogOpen}
+          onClose={() => setNewItemDialogOpen(false)}
+          role="dialog"
+          aria-labelledby="new-item-dialog"
+          aria-modal="true"
+          disableEnforceFocus
+          disablePortal
+          disableScrollLock
+          componentsProps={{ backdrop: { style: { pointerEvents: 'none' } } }}
+        >
+          <DialogTitle id="new-item-dialog">Создать новый элемент</DialogTitle>
+          <DialogContent>
+            <Select
               value={newItemType}
-              onChange={(e)=>setNewItemType(e.target.value)}
+              onChange={e => setNewItemType(e.target.value)}
               fullWidth
-              sx={{mb:2}}>
-                <MenuItem value="request">Запрос</MenuItem>
-                <MenuItem value="folder">Папка</MenuItem>
-              </Select>
-              <TextField label="Название элемента"
-              fullWidth value={newItemName} onChange={(e)=>setNewItemName(e.target.value)} autoFocus/>
-            </DialogContent>
-            <DialogActions>
-              <Button onClick={()=>setNewItemDialogOpen(false)}>Отмена</Button>
-              <Button
-              onClick={handleCreateNewItem} disabled={!newItemName.trim() || !requestState.collectionId} variant="contained">Создать</Button>
-            </DialogActions>
-     </Dialog>
-          </Portal>
-     
-      {/* Отображение ошибок */}
+              sx={{ mb: 2 }}
+            >
+              <MenuItem value="request">Запрос</MenuItem>
+              <MenuItem value="folder">Папка</MenuItem>
+            </Select>
+            <TextField
+              label="Название элемента"
+              fullWidth
+              value={newItemName}
+              onChange={e => setNewItemName(e.target.value)}
+              autoFocus
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setNewItemDialogOpen(false)}>Отмена</Button>
+            <Button
+              onClick={handleCreateNewItem}
+              disabled={!newItemName.trim() || !requestState.collectionId}
+              variant="contained"
+            >
+              Создать
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Portal>
+
+      {/* ===== Отображение ошибок ===== */}
       {error && (
         <Alert severity="error" sx={{ position: 'fixed', bottom: 20, right: 20 }}>
           {error}

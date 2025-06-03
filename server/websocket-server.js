@@ -43,7 +43,11 @@ class WebSocketServer {
 
       ws.on('message', data => this.handleMessage(sessionId, data));
       ws.on('close', ()     => this.handleClose(sessionId));
-      ws.on('error', err   => this.sendError(sessionId, err.message));
+    ws.on('error', err => {
+  console.error('WebSocket error:', err);
+  this.sendError(sessionId, err.message);
+  this.handleClose(sessionId);
+});
 
       this.sendSystem(sessionId, 'Connection established');
     });

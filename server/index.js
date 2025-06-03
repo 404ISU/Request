@@ -22,7 +22,7 @@ const corsOptions = {
   origin: 'http://localhost:5173',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS', 'TRACE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
 };
 app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', 'http://localhost:5173');
@@ -35,6 +35,7 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: false }));
 
+
 // маршруты
 app.use('/api/requests', requestRoutes);
 app.use('/', require('./routes/authRoutes'));
@@ -42,6 +43,7 @@ app.use('/api/workers', require('./routes/workerRoutes'))
 app.use('/api/admin', adminRoutes);
 app.use('/api/collections', require('./routes/collectionRoutes'));
 app.use('/api/websocket/history', websocketHistory);
+app.use('/api/tests/load', require('./routes/loadTestRoutes'));
 
 
 
