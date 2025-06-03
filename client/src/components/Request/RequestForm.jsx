@@ -232,28 +232,28 @@ const RequestForm = () => {
       const expected = a.expected;
 
       switch (a.operator) {
-        case 'equals':
+        case 'равно':
           passed = actualValue == expected;
           break;
-        case 'not equals':
+        case 'не равно':
           passed = actualValue != expected;
           break;
-        case 'contains':
+        case 'содержит':
           passed = String(actualValue).includes(expected);
           break;
-        case 'not contains':
+        case 'не содержит':
           passed = !String(actualValue).includes(expected);
           break;
-        case 'greater than':
+        case 'больше чем':
           passed = Number(actualValue) > Number(expected);
           break;
-        case 'less than':
+        case 'меньше чем':
           passed = Number(actualValue) < Number(expected);
           break;
-        case 'exists':
+        case 'существует':
           passed = actualValue !== undefined && actualValue !== null;
           break;
-        case 'not exists':
+        case 'не существует':
           passed = actualValue === undefined || actualValue === null;
           break;
         default:

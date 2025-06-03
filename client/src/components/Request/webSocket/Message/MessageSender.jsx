@@ -16,7 +16,6 @@ export default function MessageSender({ connectionId, onSendMessage }) {
         <Select value={format} label="Формат" onChange={e => setFormat(e.target.value)}>
           <MenuItem value="text">Text</MenuItem>
           <MenuItem value="json">JSON</MenuItem>
-          <MenuItem value="xml">XML</MenuItem>
         </Select>
       </FormControl>
 

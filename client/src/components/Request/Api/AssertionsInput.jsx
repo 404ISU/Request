@@ -11,15 +11,15 @@ const AssertionsInput = ({ onChange }) => {
   // Типы проверок
   const assertionTypes = {
     status: {
-      operators: ['equals', 'not equals', 'greater than', 'less than'],
+      operators: ['равно', 'не равно', 'больше', 'меньше'],
       inputType: 'number'
     },
     body: {
-      operators: ['contains', 'not contains', 'equals'],
+      operators: ['содержит', 'не содержит', 'равно'],
       inputType: 'text'
     },
     headers: {
-      operators: ['exists', 'not exists', 'equals'],
+      operators: ['присутствует', 'отсутствует', 'равно'],
       inputType: 'text'
     }
   };
