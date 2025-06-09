@@ -77,23 +77,24 @@ const WebSocketClient = () => {
     axios.patch(`/api/websocket/history/${connectionId}/close`, {});
 
   // при выборе соединения подгружаем сообщения
-  const selectConnection = async(id)=>{
+  const selectConnection = async(id) => {
     setActiveConnectionId(id);
     // загрузить сообщение при переключения
     try {
       const {data: msgs} = await axios.get(`/api/websocket/history/${id}/messages`);
-      setConnections(prev=> prev.map(c=> c.id === id ? {...c, messages: msgs.map(m=>({
-        id: m.id,
-        content: m.content,
-        direction: m.direction,
-        timestamp: new Date(m.timestamp)
-      }))} : c));
+      setConnections(prev => prev.map(c => c.id === id ? {
+        ...c,
+        messages: msgs.map(m => ({
+          id: m.id,
+          content: m.content,
+          direction: m.direction,
+          timestamp: new Date(m.timestamp)
+        }))
+      } : c));
     } catch (error) {
-      console.error('Ошибка загрузки сообщений')
+      console.error('Ошибка загрузки сообщений');
     }
-  }
-
-  // удаление сесси
+  };
 
   // Добавление новой сессии
   const addConnection = async newConn => {
@@ -125,12 +126,92 @@ const WebSocketClient = () => {
 
     setIsConnecting(true);
     try {
-      const ws = new WebSocket(conn.url, conn.protocols);
+      // Валидация URL
+      console.log('Validating URL:', conn.url);
+      
+      // Проверяем и очищаем URL
+      let cleanUrl = conn.url.trim();
+      
+      // Если URL начинается с @, удаляем его
+      if (cleanUrl.startsWith('@')) {
+        cleanUrl = cleanUrl.substring(1);
+      }
+      
+      if (!cleanUrl.startsWith('ws://') && !cleanUrl.startsWith('wss://')) {
+        console.error('Invalid URL format:', cleanUrl);
+        throw new Error('URL must start with ws:// or wss://');
+      }
+
+      console.log('Using WebSocket URL:', cleanUrl);
+
+      // Создаем WebSocket с заголовками и опциями
+      const wsOptions = {
+        rejectUnauthorized: false, // Allow self-signed certificates
+        handshakeTimeout: 10000,   // 10 second timeout
+        perMessageDeflate: false,  // Disable compression for better compatibility
+        followRedirects: true,     // Follow redirects if any
+        maxPayload: 1048576        // 1MB max payload
+      };
+
+      // Добавляем базовые заголовки
+      const defaultHeaders = {
+        'Origin': window.location.origin,
+        'User-Agent': navigator.userAgent,
+        'Connection': 'Upgrade',
+        'Upgrade': 'websocket'
+      };
+
+      // Объединяем с пользовательскими заголовками
+      const headers = { ...defaultHeaders, ...conn.headers };
+
+      // Определяем протоколы
+      const protocols = conn.protocols || [];
+
+      console.log('Attempting WebSocket connection with:', {
+        url: cleanUrl,
+        protocols,
+        headers,
+        options: wsOptions
+      });
+
+      // Создаем WebSocket с протоколами и заголовками
+      const ws = new WebSocket(cleanUrl, protocols, wsOptions);
+
+      // Сохраняем WebSocket в состоянии соединения
       setConnections(prev =>
         prev.map(c => c.id === connectionId ? { ...c, ws, status: 'connecting' } : c)
       );
 
+      // Устанавливаем таймаут для подключения
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          ws.close();
+          const errorMsg = {
+            id: uuidv4(),
+            content: 'Connection timeout after 10 seconds',
+            type: 'error',
+            direction: 'ERROR',
+            timestamp: new Date()
+          };
+          setConnections(prev =>
+            prev.map(c => c.id === connectionId ? {
+              ...c,
+              status: 'disconnected',
+              messages: [...c.messages, errorMsg]
+            } : c)
+          );
+          enqueueSnackbar('Connection timeout', { variant: 'error' });
+        }
+      }, 10000);
+
+      // Добавляем обработчик для успешного подключения
       ws.onopen = () => {
+        clearTimeout(connectionTimeout);
+        console.log('WebSocket Connection Established:', {
+          url: conn.url,
+          protocols,
+          headers
+        });
         setConnections(prev =>
           prev.map(c => c.id === connectionId ? { ...c, status: 'connected' } : c)
         );
@@ -139,66 +220,342 @@ const WebSocketClient = () => {
       };
 
       ws.onmessage = async event => {
-        const message = { id: uuidv4(), content: event.data, direction: 'INCOMING', timestamp: new Date() };
-        try { await logMessageOnServer(connectionId, 'INCOMING', event.data); } catch {}
+        let content = event.data;
+        let type = 'text';
+        
+        // Пытаемся определить тип сообщения
+        try {
+          const parsed = JSON.parse(content);
+          content = JSON.stringify(parsed, null, 2);
+          type = 'json';
+        } catch {
+          if (content.startsWith('<')) {
+            type = 'xml';
+          }
+        }
+
+        const message = {
+          id: uuidv4(),
+          content,
+          type,
+          direction: 'INCOMING',
+          timestamp: new Date()
+        };
+
+        try {
+          await logMessageOnServer(connectionId, 'INCOMING', content);
+        } catch (err) {
+          console.error('Failed to log message:', err);
+        }
+
         setConnections(prev =>
-          prev.map(c => c.id === connectionId ? { ...c, messages: [...c.messages, message] } : c)
+          prev.map(c => c.id === connectionId ? {
+            ...c,
+            messages: [...c.messages, message]
+          } : c)
         );
       };
 
       ws.onerror = error => {
-        enqueueSnackbar(`WebSocket error: ${error.message}`, { variant: 'error' });
+        clearTimeout(connectionTimeout);
+        let errorMessage = 'Unknown error';
+        
+        // Пытаемся получить более подробную информацию об ошибке
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (typeof error === 'string') {
+          errorMessage = error;
+        } else if (error && error.message) {
+          errorMessage = error.message;
+        }
+
+        // Проверяем состояние соединения
+        const readyStateMap = {
+          0: 'CONNECTING',
+          1: 'OPEN',
+          2: 'CLOSING',
+          3: 'CLOSED'
+        };
+
+        // Добавляем контекст к ошибке
+        if (errorMessage.includes('failed')) {
+          errorMessage += ` - Connection state: ${readyStateMap[ws.readyState]}`;
+          errorMessage += ' - Possible reasons: server is not available, CORS issues, or invalid URL';
+        }
+
+        // Проверяем наличие CORS ошибки
+        if (errorMessage.includes('CORS') || errorMessage.includes('cross-origin')) {
+          errorMessage = 'CORS error: The server does not allow connections from this origin. Try using a CORS proxy or ensure the server allows your origin.';
+        }
+
+        // Добавляем проверку SSL/TLS ошибок
+        if (errorMessage.includes('SSL') || errorMessage.includes('TLS') || errorMessage.includes('certificate')) {
+          errorMessage = 'SSL/TLS error: There might be issues with the server certificate or SSL configuration.';
+        }
+
+        // Добавляем проверку на недоступность сервера
+        if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('ENOTFOUND')) {
+          errorMessage = 'Server is not available or unreachable. Please check the URL and server status.';
+        }
+
+        // Проверяем версию протокола
+        if (errorMessage.includes('protocol')) {
+          errorMessage = 'Protocol error: The server might not support the specified WebSocket protocol version.';
+        }
+
+        console.error('WebSocket Error Details:', {
+          error,
+          readyState: readyStateMap[ws.readyState],
+          url: conn.url,
+          protocols,
+          headers,
+          timestamp: new Date().toISOString()
+        });
+
+        enqueueSnackbar(`WebSocket error: ${errorMessage}`, { variant: 'error' });
         setIsConnecting(false);
+        
+        // Добавляем сообщение об ошибке в историю
+        const errorMsg = {
+          id: uuidv4(),
+          content: errorMessage,
+          type: 'error',
+          direction: 'ERROR',
+          timestamp: new Date()
+        };
+        
+        setConnections(prev =>
+          prev.map(c => c.id === connectionId ? {
+            ...c,
+            status: 'disconnected',
+            messages: [...c.messages, errorMsg]
+          } : c)
+        );
       };
 
       ws.onclose = async event => {
+        clearTimeout(connectionTimeout);
         setConnections(prev =>
           prev.map(c => c.id === connectionId ? { ...c, status: 'disconnected' } : c)
         );
-        enqueueSnackbar(`WebSocket closed: ${event.reason || 'no reason'}`, { variant: 'info' });
-        try { await closeSessionOnServer(connectionId); } catch {}
+        
+        let closeMessage = event.reason || 'Connection closed';
+        const closeCode = event.code;
+
+        // Добавляем информацию о коде закрытия
+        if (closeCode) {
+          closeMessage += ` (Code: ${closeCode})`;
+          // Добавляем описание кода закрытия
+          switch (closeCode) {
+            case 1000:
+              closeMessage += ' - Normal closure';
+              break;
+            case 1001:
+              closeMessage += ' - Going away';
+              break;
+            case 1002:
+              closeMessage += ' - Protocol error';
+              break;
+            case 1003:
+              closeMessage += ' - Unsupported data';
+              break;
+            case 1005:
+              closeMessage += ' - No status received';
+              break;
+            case 1006:
+              closeMessage += ' - Abnormal closure (Server might be down or unreachable)';
+              break;
+            case 1007:
+              closeMessage += ' - Invalid frame payload data';
+              break;
+            case 1008:
+              closeMessage += ' - Policy violation';
+              break;
+            case 1009:
+              closeMessage += ' - Message too big';
+              break;
+            case 1010:
+              closeMessage += ' - Missing extension';
+              break;
+            case 1011:
+              closeMessage += ' - Internal error';
+              break;
+            case 1012:
+              closeMessage += ' - Service restart';
+              break;
+            case 1013:
+              closeMessage += ' - Try again later';
+              break;
+            case 1014:
+              closeMessage += ' - Bad gateway';
+              break;
+            case 1015:
+              closeMessage += ' - TLS handshake failed';
+              break;
+          }
+        }
+
+        console.log('WebSocket Close Details:', {
+          code: closeCode,
+          reason: event.reason,
+          wasClean: event.wasClean,
+          url: conn.url,
+          readyState: ws.readyState
+        });
+
+        enqueueSnackbar(`WebSocket closed: ${closeMessage}`, { variant: 'info' });
+
+        // Добавляем сообщение о закрытии в историю
+        const closeMsg = {
+          id: uuidv4(),
+          content: closeMessage,
+          type: 'system',
+          direction: 'SYSTEM',
+          timestamp: new Date()
+        };
+        
+        setConnections(prev =>
+          prev.map(c => c.id === connectionId ? {
+            ...c,
+            messages: [...c.messages, closeMsg]
+          } : c)
+        );
+
+        try {
+          await closeSessionOnServer(connectionId);
+        } catch (err) {
+          console.error('Failed to close session:', err);
+        }
       };
     } catch (error) {
-      enqueueSnackbar(`Connection failed: ${error.message}`, { variant: 'error' });
       setIsConnecting(false);
+      const errorMessage = error.message || 'Failed to connect';
+      enqueueSnackbar(`Connection failed: ${errorMessage}`, { variant: 'error' });
+      
+      // Добавляем сообщение об ошибке в историю
+      const errorMsg = {
+        id: uuidv4(),
+        content: errorMessage,
+        type: 'error',
+        direction: 'ERROR',
+        timestamp: new Date()
+      };
+      
+      setConnections(prev =>
+        prev.map(c => c.id === connectionId ? {
+          ...c,
+          status: 'disconnected',
+          messages: [...c.messages, errorMsg]
+        } : c)
+      );
     }
   }, [connections, enqueueSnackbar]);
 
   // Отправка сообщения
   const onSendMessage = async ({ connectionId, content }) => {
     const conn = connections.find(c => c.id === connectionId);
-    if (!conn?.ws || conn.ws.readyState !== WebSocket.OPEN) return;
+    if (!conn?.ws || conn.ws.readyState !== WebSocket.OPEN) {
+      enqueueSnackbar('WebSocket is not connected', { variant: 'error' });
+      return;
+    }
 
-    conn.ws.send(content);
-    try { await logMessageOnServer(connectionId, 'OUTGOING', content); } catch {}
-    const message = { id: uuidv4(), content, direction: 'OUTGOING', timestamp: new Date() };
-    setConnections(prev =>
-      prev.map(c => c.id === connectionId ? { ...c, messages: [...c.messages, message] } : c)
-    );
+    try {
+      // Пытаемся определить тип сообщения
+      let type = 'text';
+      try {
+        const parsed = JSON.parse(content);
+        content = JSON.stringify(parsed);
+        type = 'json';
+      } catch {
+        if (content.startsWith('<')) {
+          type = 'xml';
+        }
+      }
+
+      conn.ws.send(content);
+      
+      try {
+        await logMessageOnServer(connectionId, 'OUTGOING', content);
+      } catch (err) {
+        console.error('Failed to log message:', err);
+      }
+
+      const message = {
+        id: uuidv4(),
+        content,
+        type,
+        direction: 'OUTGOING',
+        timestamp: new Date()
+      };
+
+      setConnections(prev =>
+        prev.map(c => c.id === connectionId ? {
+          ...c,
+          messages: [...c.messages, message]
+        } : c)
+      );
+    } catch (error) {
+      enqueueSnackbar(`Failed to send message: ${error.message}`, { variant: 'error' });
+    }
   };
 
   // Отключение и удаление
   const disconnect = useCallback(connectionId => {
     const conn = connections.find(c => c.id === connectionId);
-    conn?.ws?.close();
-  }, [connections]);
+    if (!conn) return;
 
- // удаление сессии
- const removeConnection = async (id) => {
-   // сначала попросим сервер удалить
-   try {
-     await axios.delete(`/api/websocket/history/${id}`);
-   } catch (err) {
-     console.error('Delete session failed', err);
-     enqueueSnackbar('Не удалось удалить сессию на сервере', { variant: 'error' });
-     return;
-   }
-   // затем локально удаляем
-   const conn = connections.find(c => c.id === id);
-   if (conn?.status === 'connected') conn.ws.close();
-   setConnections(prev => prev.filter(x => x.id !== id));
-   if (activeConnectionId === id) setActiveConnectionId(null);
- };
+    console.log('Disconnecting WebSocket:', {
+      connectionId,
+      status: conn.status,
+      hasWebSocket: !!conn.ws
+    });
+
+    if (conn.ws) {
+      try {
+        // Закрываем соединение с кодом 1000 (нормальное закрытие)
+        conn.ws.close(1000, 'User disconnected');
+        
+        // Обновляем состояние соединения
+        setConnections(prev =>
+          prev.map(c => c.id === connectionId ? {
+            ...c,
+            status: 'disconnected',
+            ws: null
+          } : c)
+        );
+
+        enqueueSnackbar('WebSocket disconnected', { variant: 'info' });
+      } catch (error) {
+        console.error('Error during disconnect:', error);
+        enqueueSnackbar('Error disconnecting WebSocket', { variant: 'error' });
+      }
+    } else {
+      console.warn('No WebSocket instance found for connection:', connectionId);
+      enqueueSnackbar('No active connection to disconnect', { variant: 'warning' });
+    }
+  }, [connections, enqueueSnackbar]);
+
+  // удаление сессии
+  const removeConnection = async (id) => {
+    // Сначала отключаем соединение, если оно активно
+    const conn = connections.find(c => c.id === id);
+    if (conn?.status === 'connected') {
+      await disconnect(id);
+    }
+
+    // затем удаляем на сервере
+    try {
+      await axios.delete(`/api/websocket/history/${id}`);
+    } catch (err) {
+      console.error('Delete session failed', err);
+      enqueueSnackbar('Не удалось удалить сессию на сервере', { variant: 'error' });
+      return;
+    }
+
+    // затем локально удаляем
+    setConnections(prev => prev.filter(x => x.id !== id));
+    if (activeConnectionId === id) setActiveConnectionId(null);
+  };
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
