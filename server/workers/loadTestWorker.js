@@ -1,68 +1,83 @@
-// server/workers/loadTestWorker.js
+// workers/loadTestWorker.js
+const { parentPort, workerData } = require('worker_threads');
+const mongoose = require('mongoose');
+const axios = require('axios');
+const path = require('path');
 
-const { workerData, parentPort } = require('worker_threads');
-const LoadTest = require('../models/LoadTest');
-// теперь подключаем artillery-core
-const { Engine } = require('artillery-core');
+// Подключаем модель (путь может меняться, у вас — '../models/LoadTest')
+const LoadTest = require(path.join(__dirname, '../models/LoadTest'));
 
-async function runLoadTest() {
-  // 1) Берём документ LoadTest из БД
-  const loadTest = await LoadTest.findById(workerData.testId);
-  if (!loadTest) {
-    throw new Error('Load test not found');
+// Чтение параметров из БД и запуск самого теста
+async function run() {
+  // 1) Подключаемся к MongoDB
+  await mongoose.connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true
+  });
+
+  // 2) Загружаем описание теста
+  const lt = await LoadTest.findById(workerData.testId);
+  if (!lt) {
+    parentPort.postMessage({ error: 'Test not found' });
+    return process.exit(1);
   }
 
-  // 2) Формируем конфиг для Artillery (в виде обычного JS-объекта)
-  const { request, config } = loadTest;
-  const testConfig = {
-    config: {
-      target: request.url,
-      phases: [
-        {
-          duration: config.duration,   // в секундах
-          arrivalRate: config.rate     // RPS
-        }
-      ],
-      defaults: {
-        headers: request.headers || {}
-      }
-    },
-    scenarios: [
-      {
-        name: loadTest.name || 'default_scenario',
-        flow: [
-          {
-            [request.method.toLowerCase()]: {
-              url: request.url,
-              json: request.body || {}
-            }
-          }
-        ]
-      }
-    ]
+  const { method, url, headers, body } = lt.request;
+  const { duration, rate } = lt.config;
+
+  const results = {
+    totalRequests: 0,
+    success: 0,
+    failure: 0,
+    latencies: []
   };
 
-  try {
-    // 3) Запускаем Artillery через Engine из artillery-core
-    const engine = Engine(testConfig, {});
+  const endTime = Date.now() + duration * 1000;
 
-    // Engine.run() возвращает Promise<report>
-    const report = await engine.run();
-    // 4) Сохраняем результат в поле results и сохраняем документ
-    loadTest.results = report;
-    await loadTest.save();
-
-    // 5) Отправляем сообщение родителю
-    parentPort.postMessage({ status: 'completed', report });
-  } catch (err) {
-    parentPort.postMessage({ status: 'error', error: err.message });
-  } finally {
-    process.exit(0);
+  // 3) Функция одной итерации
+  async function singleRequest() {
+    const start = Date.now();
+    try {
+      const res = await axios.request({ method, url, headers, data: body, validateStatus: () => true });
+      const delta = Date.now() - start;
+      results.totalRequests++;
+      results.latencies.push(delta);
+      if (res.status >= 200 && res.status < 400) {
+        results.success++;
+      } else {
+        results.failure++;
+      }
+    } catch (err) {
+      results.totalRequests++;
+      results.failure++;
+    }
   }
+
+  // 4) Запускаем цикл с нужным RPS
+  while (Date.now() < endTime) {
+    const promises = [];
+    for (let i = 0; i < rate; i++) {
+      promises.push(singleRequest());
+    }
+    // ждем, пока все RPS-запросы завершатся, затем — следующую порцию
+    await Promise.all(promises);
+  }
+
+  // 5) Подсчет статистики
+  const sum = results.latencies.reduce((a, b) => a + b, 0);
+  const avgLatency = results.latencies.length ? sum / results.latencies.length : 0;
+  results.averageLatency = avgLatency;
+
+  // 6) Сохраняем в документ
+  lt.results = results;
+  await lt.save();
+
+  parentPort.postMessage({ message: 'Load test finished', results });
+  process.exit(0);
 }
 
-// Если произошла “непредвиденная” ошибка
-runLoadTest().catch(err => {
-  parentPort.postMessage({ status: 'error', error: err.message });
+// Обрабатываем ошибки
+run().catch(err => {
+  parentPort.postMessage({ error: err.message });
   process.exit(1);
 });

@@ -16,27 +16,23 @@ class LoadTestController {
   }
 
   // Запустить тест в фоне (воркер)
-  async run(req, res) {
-    try {
-      const { id } = req.params;
-      const lt = await LoadTest.findById(id);
-      if (!lt) return res.status(404).json({ message: 'Not found' });
+async run(req, res) {
+  const { id } = req.params;
+  const lt = await LoadTest.findById(id);
+  if (!lt) return res.status(404).json({ message: 'Not found' });
 
-      const worker = new Worker(path.join(__dirname, '../workers/loadTestWorker.js'), {
-        workerData: { testId: id }
-      });
+  const worker = new Worker(path.join(__dirname, '../workers/loadTestWorker.js'), {
+    workerData: { testId: id }
+  });
 
-      worker.on('message', msg => {
-        console.log('Worker message:', msg);
-      });
-      worker.on('error', err => console.error('Worker error:', err));
-      worker.on('exit', code => console.log(`Worker exited with code ${code}`));
+  worker.on('message', msg => {
+    console.log('Worker message:', msg);
+  });
+  worker.on('error', err => console.error('Worker error:', err));
+  worker.on('exit', code => console.log(`Worker exited with code ${code}`));
 
-      res.json({ message: 'Load test started' });
-    } catch (err) {
-      res.status(500).json({ message: err.message });
-    }
-  }
+  res.json({ message: 'Load test started' });
+}
 
   // Получить статус/результаты теста
   async getStatus(req, res) {

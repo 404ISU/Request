@@ -612,9 +612,9 @@ export default function RequestForm() {
                         {expandedSections.request && (
                           <Stack spacing={2}>
                             <Grid container spacing={1} alignItems="center">
-                              <Grid item xs={3}>
+                              <div item xs={3}>
                                 <MethodSelector value={method} onChange={setMethod} fullWidth />
-                              </Grid>
+                              </div>
                               <Grid item xs={9}>
                                 <ApiInput
                                   value={apiUrl}
