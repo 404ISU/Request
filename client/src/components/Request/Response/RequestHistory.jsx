@@ -57,6 +57,7 @@ const RequestHistory = ({ requests, onReuseRequest }) => {
             status={selectedRequest.response.status}
             headers={selectedRequest.response.headers}
             latency={selectedRequest.response.latency}
+            error={selectedRequest.response.error}
           />
         </Box>
       )}

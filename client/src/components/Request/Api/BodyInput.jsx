@@ -35,7 +35,7 @@ const BodyInput = ({ value, onChange, method }) => {
         }}
       >
         <Typography variant="subtitle1">
-          Request Body {method === 'GET' && '(disabled for GET)'}
+          Тело запроса {method === 'GET' && '(Отключено для метода GET)'}
         </Typography>
         <Typography color={isValid ? 'text.secondary' : 'error'}>
           {isOpen ? '▲' : '▼'}

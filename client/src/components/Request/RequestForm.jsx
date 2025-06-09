@@ -152,9 +152,10 @@ export default function RequestForm() {
     query: parseQueryString(serverRequest.queryParams),
     response: {
       status: serverRequest.response?.status,
-      data: tryParseJSON(serverRequest.response?.body),
-      headers: serverRequest.response?.headers,
-      latency: serverRequest.response?.latency
+      data: serverRequest.response?.body ? tryParseJSON(serverRequest.response.body) : null,
+      headers: serverRequest.response?.headers || {},
+      latency: serverRequest.response?.latency,
+      error: serverRequest.response?.error || null
     },
     timestamp: serverRequest.timestamp
   });
@@ -456,6 +457,14 @@ export default function RequestForm() {
       );
       const latency = Date.now() - startTime;
 
+      // Нормализуем заголовки
+      const normalizedHeaders = {};
+      if (res.headers) {
+        Object.entries(res.headers).forEach(([key, value]) => {
+          normalizedHeaders[key.toLowerCase()] = value;
+        });
+      }
+
       const newRequest = {
         id: Date.now(),
         method,
@@ -465,16 +474,17 @@ export default function RequestForm() {
         query: parsedQuery,
         response: {
           status: res.status,
-          data: res.data,
-          headers: res.headers,
-          latency
+          data: res.data.data || res.data,
+          headers: normalizedHeaders,
+          latency,
+          error: res.data.error || null
         },
         timestamp: new Date().toISOString()
       };
 
       // Запуск assertions
       const results = runAssertions(
-        { status: res.status, data: res.data, headers: res.headers },
+        { status: res.status, data: res.data.data || res.data, headers: normalizedHeaders },
         latency,
         assertions
       );
@@ -486,9 +496,10 @@ export default function RequestForm() {
           ...requestState,
           response: {
             status: res.status,
-            data: JSON.stringify(res.data),
-            headers: res.headers,
-            latency
+            body: JSON.stringify(res.data.data || res.data),
+            headers: normalizedHeaders,
+            latency,
+            error: res.data.error || null
           }
         });
       }
@@ -497,6 +508,20 @@ export default function RequestForm() {
       setResponse(newRequest.response);
     } catch (err) {
       console.error('Request Error:', err);
+      const errorResponse = {
+        status: err.response?.status || 500,
+        data: err.response?.data?.data || err.response?.data || { message: err.message },
+        headers: err.response?.headers ? Object.fromEntries(
+          Object.entries(err.response.headers).map(([k, v]) => [k.toLowerCase(), v])
+        ) : {},
+        latency: 0,
+        error: {
+          message: err.message,
+          code: err.code,
+          details: err.response?.data
+        }
+      };
+      setResponse(errorResponse);
       setError(err.message);
     } finally {
       setLoading(false);

@@ -45,10 +45,16 @@ router.post('/makeRequest', async (req, res) => {
       timeout: 10000
     });
 
+    // Нормализуем заголовки ответа
+    const normalizedHeaders = {};
+    Object.entries(response.headers).forEach(([key, value]) => {
+      normalizedHeaders[key.toLowerCase()] = value;
+    });
+
     const newResponse = new Response({
       status: response.status,
       body: JSON.stringify(response.data),
-      headers: response.headers,
+      headers: normalizedHeaders,
       latency: Date.now() - start,
       timestamp: new Date()
     });
@@ -71,7 +77,7 @@ router.post('/makeRequest', async (req, res) => {
     res.status(200).json({
       data: response.data,
       status: response.status,
-      headers: response.headers,
+      headers: normalizedHeaders,
       latency: Date.now() - start,
       _id: newRequest._id,
       timestamp: new Date()
@@ -79,9 +85,24 @@ router.post('/makeRequest', async (req, res) => {
 
   } catch (error) {
     console.error('Ошибка:', error);
-    res.status(500).json({ 
+    
+    // Нормализуем заголовки ошибки
+    const errorHeaders = {};
+    if (error.response?.headers) {
+      Object.entries(error.response.headers).forEach(([key, value]) => {
+        errorHeaders[key.toLowerCase()] = value;
+      });
+    }
+
+    res.status(error.response?.status || 500).json({ 
       message: error.message,
-      details: error.response?.data 
+      details: error.response?.data,
+      error: {
+        code: error.code,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        headers: errorHeaders
+      }
     });
   }
 });

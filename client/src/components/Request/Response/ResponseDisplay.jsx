@@ -1,9 +1,9 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Box, Tabs, Tab, Chip, ButtonGroup, Button, Tooltip, ToggleButton, TextField, InputAdornment } from '@mui/material';
-import { Code, FormatAlignLeft, WrapText, Search, ContentCopy } from '@mui/icons-material';
+import { Box, Tabs, Tab, Chip, ButtonGroup, Button, Tooltip, ToggleButton, TextField, InputAdornment, Alert, Typography } from '@mui/material';
+import { Code, FormatAlignLeft, WrapText, Search, ContentCopy, Error as ErrorIcon } from '@mui/icons-material';
 import Editor from '@monaco-editor/react';
 
-const ResponseDisplay = ({ data, headers, status, latency }) => {
+const ResponseDisplay = ({ data, headers, status, latency, error }) => {
   const [activeTab, setActiveTab] = useState('body');
   const [viewMode, setViewMode] = useState('pretty');
   const [copied, setCopied] = useState(false);
@@ -34,12 +34,36 @@ const ResponseDisplay = ({ data, headers, status, latency }) => {
   // Форматирование данных
   const formattedData = useMemo(() => {
     try {
-      const content = activeTab === 'body' ? data : headers;
+      let content;
+      if (activeTab === 'body') {
+        // Если данные пришли как часть объекта response
+        if (data && typeof data === 'object' && 'data' in data) {
+          content = data.data;
+        } else if (typeof data === 'string') {
+          try {
+            content = JSON.parse(data);
+          } catch {
+            content = data;
+          }
+        } else {
+          content = data;
+        }
+      } else {
+        // Нормализуем заголовки для отображения
+        content = headers ? Object.fromEntries(
+          Object.entries(headers).sort(([a], [b]) => a.localeCompare(b))
+        ) : {};
+      }
       
       if (viewMode === 'pretty') {
-        return typeof content === 'string' 
-          ? JSON.stringify(JSON.parse(content), null, 2)
-          : JSON.stringify(content, null, 2);
+        if (typeof content === 'string') {
+          try {
+            return JSON.stringify(JSON.parse(content), null, 2);
+          } catch {
+            return content;
+          }
+        }
+        return JSON.stringify(content, null, 2);
       }
 
       if (typeof content === 'string') {
@@ -56,7 +80,8 @@ const ResponseDisplay = ({ data, headers, status, latency }) => {
       }
 
       return JSON.stringify(content);
-    } catch {
+    } catch (err) {
+      console.error('Error formatting data:', err);
       return typeof data === 'string' ? data : JSON.stringify(data);
     }
   }, [data, headers, activeTab, viewMode]);
@@ -175,6 +200,28 @@ const ResponseDisplay = ({ data, headers, status, latency }) => {
       p: 2,
       bgcolor: 'background.paper'
     }}>
+      {error && (
+        <Alert 
+          severity="error" 
+          icon={<ErrorIcon />}
+          sx={{ mb: 2 }}
+        >
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+            <Typography variant="subtitle2">{error.message}</Typography>
+            {error.code && (
+              <Typography variant="caption" color="error">
+                Код ошибки: {error.code}
+              </Typography>
+            )}
+            {error.details && (
+              <Typography variant="caption" color="error">
+                Детали: {JSON.stringify(error.details)}
+              </Typography>
+            )}
+          </Box>
+        </Alert>
+      )}
+
       <Box sx={{ 
         display: 'flex', 
         justifyContent: 'space-between',
