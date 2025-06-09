@@ -83,13 +83,23 @@ class CollectionController {
       const coll = await Collection.findOne({ _id: collectionId, owner: userId });
       if (!coll) return res.status(404).json({ message: 'Коллекция не найдена' });
 
-      // подсчитываем order среди siblings
+      // Проверяем существование родительской папки
+      if (parentId) {
+        const parentExists = coll.items.some(item => 
+          String(item.id) === String(parentId) && item.type === 'folder'
+        );
+        if (!parentExists) {
+          return res.status(400).json({ message: 'Родительская папка не найдена' });
+        }
+      }
+
+      // Подсчитываем order среди siblings
       const siblings = coll.items.filter(i => String(i.parentId) === String(parentId || null));
       const newOrder = siblings.length;
 
       const newItem = {
         id: new mongoose.Types.ObjectId(),
-        name,
+        name: name.trim(),
         type,
         parentId: parentId || null,
         order: newOrder,
@@ -160,7 +170,7 @@ class CollectionController {
       const userId = req.user._id;
       const { collectionId } = req.params;
       const { items: updatedItems } = req.body;
-      // ожидаем: items = [{ id, parentId, order }, …]
+
       if (!Array.isArray(updatedItems)) {
         return res.status(400).json({ message: 'Field "items" must be an array' });
       }
@@ -168,12 +178,31 @@ class CollectionController {
       const coll = await Collection.findOne({ _id: collectionId, owner: userId });
       if (!coll) return res.status(404).json({ message: 'Коллекция не найдена' });
 
+      // Обновляем порядок и родителя для каждого элемента
       updatedItems.forEach(u => {
-        const it = coll.items.find(x => String(x.id) === String(u.id));
-        if (it) {
-          it.parentId = u.parentId || null;
-          it.order = u.order;
+        const item = coll.items.find(x => String(x.id) === String(u.id));
+        if (item) {
+          // Проверяем существование родительской папки
+          if (u.parentId) {
+            const parentExists = coll.items.some(x => 
+              String(x.id) === String(u.parentId) && x.type === 'folder'
+            );
+            if (!parentExists) {
+              throw new Error(`Parent folder ${u.parentId} not found`);
+            }
+          }
+          
+          item.parentId = u.parentId || null;
+          item.order = u.order;
         }
+      });
+
+      // Сортируем элементы по parentId и order
+      coll.items.sort((a, b) => {
+        if (String(a.parentId) !== String(b.parentId)) {
+          return String(a.parentId || '').localeCompare(String(b.parentId || ''));
+        }
+        return (a.order || 0) - (b.order || 0);
       });
 
       await coll.save();

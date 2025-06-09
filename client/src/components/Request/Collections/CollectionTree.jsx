@@ -1,5 +1,5 @@
 // src/components/Collections/CollectionTree.jsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import {
   Box,
@@ -27,11 +27,24 @@ import {
   ExpandLess,
   ExpandMore,
 } from '@mui/icons-material';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { SortableItem } from './SortableItem';
 
-export function CollectionTree({ collection, onSelectRequest }) {
+export function CollectionTree({ collection, onSelect }) {
   const qc = useQueryClient();
 
   const [expandedMap, setExpandedMap] = useState({});
@@ -51,6 +64,13 @@ export function CollectionTree({ collection, onSelectRequest }) {
     queryParams: '{}',
     body: '',
   });
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // --- API-мутэйшны ---
   const addItemMut = useMutation({
@@ -100,17 +120,34 @@ export function CollectionTree({ collection, onSelectRequest }) {
   const tree = useMemo(() => {
     const map = {};
     const roots = [];
-    collection.items.forEach(i => { map[i.id] = { ...i, children: [] }; });
+    
+    // Сначала создаем все узлы
+    collection.items.forEach(i => { 
+      map[i.id] = { ...i, children: [] }; 
+    });
+    
+    // Затем устанавливаем связи и сортируем
     Object.values(map).forEach(node => {
       const pid = node.parentId ? String(node.parentId) : null;
-      if (pid && map[pid]) map[pid].children.push(node);
-      else roots.push(node);
+      if (pid && map[pid]) {
+        map[pid].children.push(node);
+      } else {
+        roots.push(node);
+      }
     });
-    const sortRec = arr => {
-      arr.sort((a, b) => (a.order || 0) - (b.order || 0));
-      arr.forEach(ch => sortRec(ch.children));
+    
+    // Функция для рекурсивной сортировки и установки order
+    const sortAndSetOrder = (nodes, startIndex = 0) => {
+      nodes.sort((a, b) => (a.order || 0) - (b.order || 0));
+      nodes.forEach((node, index) => {
+        node.order = startIndex + index;
+        if (node.children.length > 0) {
+          sortAndSetOrder(node.children, node.order + 1);
+        }
+      });
     };
-    sortRec(roots);
+    
+    sortAndSetOrder(roots);
     return roots;
   }, [collection.items]);
 
@@ -196,54 +233,75 @@ export function CollectionTree({ collection, onSelectRequest }) {
     setExpandedMap(m => ({ ...m, [id]: !m[id] }));
   };
 
-  const onDragEnd = result => {
-    if (!result.destination) return;
-    const { draggableId, source, destination } = result;
-    const newParentId = destination.droppableId === collection._id ? null : destination.droppableId;
-    const newOrder = destination.index;
-    reorderMut.mutate({
-      collectionId: collection._id,
-      items: [{ id: draggableId, parentId: newParentId, order: newOrder }],
-    });
-  };
+  const handleDragEnd = useCallback(
+    async ({ active, over }) => {
+      if (!over || active.id === over.id) return;
+      
+      try {
+        const activeItem = collection.items.find(item => String(item.id) === String(active.id));
+        const overItem = collection.items.find(item => String(item.id) === String(over.id));
+        
+        if (!activeItem || !overItem) return;
+
+        // Determine new parent and order
+        const newParentId = overItem.type === 'folder' ? overItem.id : overItem.parentId;
+        const siblings = collection.items.filter(item => 
+          String(item.parentId) === String(newParentId || null)
+        );
+        
+        // Calculate new order
+        const overIndex = siblings.findIndex(item => String(item.id) === String(over.id));
+        const newOrder = overIndex >= 0 ? overIndex : siblings.length;
+
+        await axios.patch(
+          `/api/collections/${collection._id}/reorder`,
+          {
+            items: [{
+              id: active.id,
+              parentId: newParentId,
+              order: newOrder
+            }]
+          },
+          { withCredentials: true }
+        );
+        
+        qc.invalidateQueries(['collections']);
+      } catch (err) {
+        console.error('Reorder error:', err);
+      }
+    },
+    [collection, qc]
+  );
 
   // --- Рендер узла ---
   const renderNode = (node, depth = 0) => {
     const isFolder = node.type === 'folder';
-    const isExpanded = expandedMap[node.id] !== false;
+    const isExpanded = expandedMap[node.id];
+    const children = tree.filter(n => String(n.parentId) === String(node.id));
 
     return (
-      <Draggable key={node.id} draggableId={node.id} index={node.order || 0}>
-        {prov => (
-          <Box
-            ref={prov.innerRef}
-            {...prov.draggableProps}
-            sx={{ pl: depth * 2, display: 'flex', alignItems: 'center' }}
+      <Box key={node.id} sx={{ pl: depth * 2 }}>
+        <SortableItem
+          id={String(node.id)}
+          data={node}
+          onSelect={() => {
+            if (isFolder) toggleExpand(node.id);
+            else onSelect(node);
+          }}
+          onMenuClick={(e) => openMenu(e, node.id)}
+          isFolder={isFolder}
+          isExpanded={isExpanded}
+          onExpandClick={() => toggleExpand(node.id)}
+        />
+        {isFolder && isExpanded && children.length > 0 && (
+          <SortableContext
+            items={children.map(c => String(c.id))}
+            strategy={verticalListSortingStrategy}
           >
-            <Box {...prov.dragHandleProps} sx={{ mr: 1, cursor: 'grab' }}>⋮</Box>
-            {isFolder
-              ? <IconButton size="small" onClick={() => toggleExpand(node.id)}>
-                  {isExpanded ? <ExpandLess/> : <ExpandMore/>}
-                </IconButton>
-              : <Box sx={{ width: 32 }}/>}
-            <Box
-              sx={{ flexGrow:1, display:'flex',alignItems:'center',cursor:'pointer','&:hover':{bgcolor:'#f5f5f5'} }}
-              onClick={() => {
-                if (isFolder) toggleExpand(node.id);
-                else onSelectRequest(node);
-              }}
-            >
-              {isFolder
-                ? <FolderIcon sx={{mr:1}} color="primary"/>
-                : <FileIcon   sx={{mr:1}} color="action"/>}
-              <Typography noWrap variant="body2">{node.name}</Typography>
-            </Box>
-            <IconButton size="small" onClick={e => openMenu(e, node.id)}>
-              <MoreVert fontSize="small"/>
-            </IconButton>
-          </Box>
+            {children.map(child => renderNode(child, depth + 1))}
+          </SortableContext>
         )}
-      </Draggable>
+      </Box>
     );
   };
 
@@ -254,23 +312,18 @@ export function CollectionTree({ collection, onSelectRequest }) {
         <IconButton size="small" onClick={() => openAddDialog(null)}><Add/></IconButton>
       </Box>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Droppable droppableId={collection._id} type="ITEM">
-          {prov => (
-            <Box ref={prov.innerRef} {...prov.droppableProps}>
-              {tree.map(node => (
-                <React.Fragment key={node.id}>
-                  {renderNode(node, 0)}
-                  {node.type === 'folder' && expandedMap[node.id] !== false && node.children.map(ch =>
-                    renderNode(ch, 1)
-                  )}
-                </React.Fragment>
-              ))}
-              {prov.placeholder}
-            </Box>
-          )}
-        </Droppable>
-      </DragDropContext>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={tree.map(node => String(node.id))}
+          strategy={verticalListSortingStrategy}
+        >
+          {tree.map(node => renderNode(node))}
+        </SortableContext>
+      </DndContext>
 
       {/* Диалог */}
       <Dialog open={dialogOpen} onClose={handleDialogClose} fullWidth maxWidth="sm">
