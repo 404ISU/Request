@@ -277,7 +277,7 @@ export function CollectionTree({ collection, onSelect }) {
   const renderNode = (node, depth = 0) => {
     const isFolder = node.type === 'folder';
     const isExpanded = expandedMap[node.id];
-    const children = tree.filter(n => String(n.parentId) === String(node.id));
+    const children = node.children || [];
 
     return (
       <Box key={node.id} sx={{ pl: depth * 2 }}>
