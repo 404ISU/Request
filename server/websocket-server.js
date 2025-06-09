@@ -13,7 +13,7 @@ class WebSocketServer {
     });
 
     this.http = axios.create({
-      baseURL: process.env.API_URL,           // e.g. http://localhost:5000
+      baseURL: process.env.API_URL,     
       headers: { Authorization: `Bearer ${process.env.API_TOKEN}` }
     });
     this.sessions = new Map();

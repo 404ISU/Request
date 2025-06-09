@@ -1,256 +1,398 @@
-// CollectionTree.jsx
-import React, { useState } from 'react';
+// src/components/Collections/CollectionTree.jsx
+import React, { useState, useMemo } from 'react';
+import PropTypes from 'prop-types';
 import {
-  Box, Typography, IconButton,
-  ListItem, ListItemText,
-  Menu, MenuItem,
-  Dialog, DialogTitle, DialogContent, DialogActions,
-  Select, TextField, Button
+  Box,
+  Typography,
+  IconButton,
+  Menu,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  FormControl,
+  InputLabel,
+  Select,
 } from '@mui/material';
 import {
-  Folder, InsertDriveFile, Delete, Edit,
-  MoreVert, ExpandLess, ExpandMore, Add
+  Folder as FolderIcon,
+  InsertDriveFile as FileIcon,
+  MoreVert,
+  Edit,
+  Delete,
+  Add,
+  ExpandLess,
+  ExpandMore,
 } from '@mui/icons-material';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
-import { useQueryClient } from '@tanstack/react-query';
-import PropTypes from 'prop-types';
 
-// Диалог создания нового элемента
-function NewItemDialog({ open, onClose, onCreate }) {
-  const [name, setName] = useState('');
-  const [type, setType] = useState('request');
-  const handleCreate = async () => {
-    if (!name.trim()) return;
-    await onCreate({ name: name.trim(), type });
-    setName('');
-    setType('request');
-    onClose();
-  };
-  return (
-    <Dialog fullWidth open={open} onClose={onClose}>
-      <DialogTitle>Создать новый элемент</DialogTitle>
-      <DialogContent>
-        <Select
-          fullWidth
-          value={type}
-          onChange={e => setType(e.target.value)}
-          sx={{ mb: 2 }}
-        >
-          <MenuItem value="request">Запрос</MenuItem>
-          <MenuItem value="folder">Папка</MenuItem>
-        </Select>
-        <TextField
-          fullWidth
-          label="Название элемента"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          autoFocus
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Отмена</Button>
-        <Button onClick={handleCreate} disabled={!name.trim()}>
-          Создать
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-NewItemDialog.propTypes = {
-  open: PropTypes.bool.isRequired,
-  onClose: PropTypes.func.isRequired,
-  onCreate: PropTypes.func.isRequired
-};
-
-// Рекурсивный компонент элемента дерева
-function TreeItem({
-  item, index, depth, collectionId,
-  onDelete, onAddItem, expandedMap, setExpandedMap
-}) {
+export function CollectionTree({ collection, onSelectRequest }) {
   const qc = useQueryClient();
-  const isFolder = item.type === 'folder';
-  const isExpanded = expandedMap[item._id] ?? true;
-  const [menuAnchor, setMenuAnchor] = useState(null);
 
-  const toggle = async () => {
-    const next = !isExpanded;
-    setExpandedMap(m => ({ ...m, [item._id]: next }));
-    await axios.patch(`/api/collections/items/${item._id}/toggle`, { isExpanded: next });
-    qc.invalidateQueries(['collections']);
-  };
-
-  const rename = async () => {
-    const newName = prompt('Новое имя', item.name);
-    if (!newName) return;
-    await axios.patch(`/api/collections/items/${item._id}/rename`, { name: newName });
-    qc.invalidateQueries(['collections']);
-  };
-
-  const remove = async () => {
-    await onDelete(item._id);
-    qc.invalidateQueries(['collections']);
-  };
-
-  return (
-    <Draggable draggableId={String(item._id)} index={index}>
-      {prov => (
-        <div
-          ref={prov.innerRef}
-          {...prov.draggableProps}
-          style={{ paddingLeft: depth * 24, ...prov.draggableProps.style }}
-        >
-          <ListItem {...prov.dragHandleProps} divider>
-            {isFolder && (
-              <IconButton size="small" onClick={toggle}>
-                {isExpanded ? <ExpandLess /> : <ExpandMore />}
-              </IconButton>
-            )}
-            {isFolder ? <Folder sx={{ mr: 1 }} /> : <InsertDriveFile sx={{ mr: 1 }} />}
-            <ListItemText
-              primary={item.name}
-              secondary={
-                item.type === 'request' && item.request
-                  ? `${item.request.method || ''} ${item.request.url || ''}`.trim()
-                  : 'Папка'
-              }
-            />
-            {isFolder && (
-              <IconButton size="small" onClick={() => onAddItem(item._id)}>
-                <Add />
-              </IconButton>
-            )}
-            <IconButton size="small" onClick={e => setMenuAnchor(e.currentTarget)}>
-              <MoreVert />
-            </IconButton>
-            <Menu
-              anchorEl={menuAnchor}
-              open={Boolean(menuAnchor)}
-              onClose={() => setMenuAnchor(null)}
-            >
-              <MenuItem onClick={rename}>
-                <Edit sx={{ mr: 1 }} />Переименовать
-              </MenuItem>
-              <MenuItem onClick={remove}>
-                <Delete sx={{ mr: 1 }} />Удалить
-              </MenuItem>
-            </Menu>
-          </ListItem>
-
-          {isFolder && isExpanded && Array.isArray(item.children) && (
-            <Droppable droppableId={String(item._id)} type="ITEM">
-              {provDrop => (
-                <div ref={provDrop.innerRef} {...provDrop.droppableProps}>
-                  {item.children.map((child, idx) => (
-                    <TreeItem
-                      key={child._id}
-                      item={child}
-                      index={idx}
-                      depth={depth + 1}
-                      collectionId={collectionId}
-                      onDelete={onDelete}
-                      onAddItem={onAddItem}
-                      expandedMap={expandedMap}
-                      setExpandedMap={setExpandedMap}
-                    />
-                  ))}
-                  {provDrop.placeholder}
-                </div>
-              )}
-            </Droppable>
-          )}
-        </div>
-      )}
-    </Draggable>
-  );
-}
-TreeItem.propTypes = {
-  item: PropTypes.object.isRequired,
-  index: PropTypes.number.isRequired,
-  depth: PropTypes.number.isRequired,
-  collectionId: PropTypes.string.isRequired,
-  onDelete: PropTypes.func.isRequired,
-  onAddItem: PropTypes.func.isRequired,
-  expandedMap: PropTypes.object.isRequired,
-  setExpandedMap: PropTypes.func.isRequired
-};
-
-// Главный компонент
-export function CollectionTree({ collection, onDelete }) {
-  const qc = useQueryClient();
   const [expandedMap, setExpandedMap] = useState({});
+  const [menuAnchor, setMenuAnchor] = useState(null);
+  const [menuItemId, setMenuItemId] = useState(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [pendingParentId, setPendingParentId] = useState(null);
+  const [dialogMode, setDialogMode] = useState(''); // 'add' | 'rename'
+  const [parentForNew, setParentForNew] = useState(null);
+  const [editingItem, setEditingItem] = useState(null);
 
-  const handleAddItem = parentId => {
-    setPendingParentId(parentId);
+  const [formValues, setFormValues] = useState({
+    name: '',
+    type: 'folder',
+    method: 'GET',
+    url: '',
+    headers: '{}',
+    queryParams: '{}',
+    body: '',
+  });
+
+  // --- API-мутэйшны ---
+  const addItemMut = useMutation({
+    mutationFn: async ({ collectionId, payload }) => {
+      return axios.post(
+        `/api/collections/${collectionId}/items`,
+        payload,
+        { withCredentials: true }
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collections'] }),
+  });
+
+  const renameItemMut = useMutation({
+    mutationFn: async ({ itemId, name }) => {
+      return axios.patch(
+        `/api/collections/items/${itemId}/rename`,
+        { name },
+        { withCredentials: true }
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collections'] }),
+  });
+
+  const deleteItemMut = useMutation({
+    mutationFn: async (itemId) => {
+      return axios.delete(
+        `/api/collections/items/${itemId}`,
+        { withCredentials: true }
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collections'] }),
+  });
+
+  const reorderMut = useMutation({
+    mutationFn: async ({ collectionId, items }) => {
+      return axios.patch(
+        `/api/collections/${collectionId}/reorder`,
+        { items },
+        { withCredentials: true }
+      );
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['collections'] }),
+  });
+
+  // --- Построение дерева из плоского списка ---
+  const tree = useMemo(() => {
+    const map = {};
+    const roots = [];
+    collection.items.forEach(i => { map[i.id] = { ...i, children: [] }; });
+    Object.values(map).forEach(node => {
+      const pid = node.parentId ? String(node.parentId) : null;
+      if (pid && map[pid]) map[pid].children.push(node);
+      else roots.push(node);
+    });
+    const sortRec = arr => {
+      arr.sort((a, b) => (a.order || 0) - (b.order || 0));
+      arr.forEach(ch => sortRec(ch.children));
+    };
+    sortRec(roots);
+    return roots;
+  }, [collection.items]);
+
+  // --- Меню, диалоги ---
+  const openMenu = (e, id) => { e.stopPropagation(); setMenuAnchor(e.currentTarget); setMenuItemId(id); };
+  const closeMenu = () => { setMenuAnchor(null); setMenuItemId(null); };
+
+  const openAddDialog = parentId => {
+    setDialogMode('add');
+    setParentForNew(parentId);
+    setFormValues({
+      name: '',
+      type: 'folder',
+      method: 'GET',
+      url: '',
+      headers: '{}',
+      queryParams: '{}',
+      body: '',
+    });
     setDialogOpen(true);
+    closeMenu();
   };
-  const handleCreate = async ({ name, type }) => {
-    await axios.post(
-      `/api/collections/${collection._id}/items`,
-      { name, type, parentId: pendingParentId }
-    );
-    qc.invalidateQueries(['collections']);
+
+  const openRenameDialog = item => {
+    setDialogMode('rename');
+    setEditingItem(item);
+    setFormValues({
+      name: item.name,
+      type: item.type,
+      method: item.request?.method || 'GET',
+      url: item.request?.url || '',
+      headers: JSON.stringify(item.request?.headers || {}, null, 2),
+      queryParams: JSON.stringify(item.request?.queryParams || {}, null, 2),
+      body: item.request?.body ? JSON.stringify(item.request.body, null, 2) : '',
+    });
+    setDialogOpen(true);
+    closeMenu();
+  };
+
+  const handleDialogClose = () => {
     setDialogOpen(false);
-    setPendingParentId(null);
+    setEditingItem(null);
+    setParentForNew(null);
   };
-  const handleDragEnd = async ({ source, destination, draggableId }) => {
-    if (!destination) return;
-    const newParentId =
-      destination.droppableId === String(collection._id) ? null : destination.droppableId;
-    await axios.patch(
-      `/api/collections/${collection._id}/reorder`,
-      { items: [{ id: draggableId, parentId: newParentId, order: destination.index }] }
+
+  const handleDialogSubmit = () => {
+    const { name, type, method, url, headers, queryParams, body } = formValues;
+    if (!name.trim()) return;
+
+    if (dialogMode === 'add') {
+      const payload = { name: name.trim(), type };
+      if (type === 'request') {
+        let parsedHeaders = {}, parsedQuery = {}, parsedBody = null;
+        try { parsedHeaders = JSON.parse(headers); } catch { return alert('Неверный JSON в заголовках'); }
+        try { parsedQuery   = JSON.parse(queryParams); } catch { return alert('Неверный JSON в queryParams'); }
+        if (body) try { parsedBody = JSON.parse(body); } catch { return alert('Неверный JSON в теле'); }
+
+        payload.request = {
+          method, url,
+          headers: parsedHeaders,
+          queryParams: parsedQuery,
+          body: parsedBody,
+        };
+      }
+      if (parentForNew) payload.parentId = parentForNew;
+
+      addItemMut.mutate({ collectionId: collection._id, payload });
+    }
+
+    if (dialogMode === 'rename' && editingItem) {
+      renameItemMut.mutate({ itemId: editingItem.id, name: name.trim() });
+    }
+
+    handleDialogClose();
+  };
+
+  const handleDelete = (itemId) => {
+    if (window.confirm('Удалить элемент?')) deleteItemMut.mutate(itemId);
+    closeMenu();
+  };
+
+  const toggleExpand = id => {
+    setExpandedMap(m => ({ ...m, [id]: !m[id] }));
+  };
+
+  const onDragEnd = result => {
+    if (!result.destination) return;
+    const { draggableId, source, destination } = result;
+    const newParentId = destination.droppableId === collection._id ? null : destination.droppableId;
+    const newOrder = destination.index;
+    reorderMut.mutate({
+      collectionId: collection._id,
+      items: [{ id: draggableId, parentId: newParentId, order: newOrder }],
+    });
+  };
+
+  // --- Рендер узла ---
+  const renderNode = (node, depth = 0) => {
+    const isFolder = node.type === 'folder';
+    const isExpanded = expandedMap[node.id] !== false;
+
+    return (
+      <Draggable key={node.id} draggableId={node.id} index={node.order || 0}>
+        {prov => (
+          <Box
+            ref={prov.innerRef}
+            {...prov.draggableProps}
+            sx={{ pl: depth * 2, display: 'flex', alignItems: 'center' }}
+          >
+            <Box {...prov.dragHandleProps} sx={{ mr: 1, cursor: 'grab' }}>⋮</Box>
+            {isFolder
+              ? <IconButton size="small" onClick={() => toggleExpand(node.id)}>
+                  {isExpanded ? <ExpandLess/> : <ExpandMore/>}
+                </IconButton>
+              : <Box sx={{ width: 32 }}/>}
+            <Box
+              sx={{ flexGrow:1, display:'flex',alignItems:'center',cursor:'pointer','&:hover':{bgcolor:'#f5f5f5'} }}
+              onClick={() => {
+                if (isFolder) toggleExpand(node.id);
+                else onSelectRequest(node);
+              }}
+            >
+              {isFolder
+                ? <FolderIcon sx={{mr:1}} color="primary"/>
+                : <FileIcon   sx={{mr:1}} color="action"/>}
+              <Typography noWrap variant="body2">{node.name}</Typography>
+            </Box>
+            <IconButton size="small" onClick={e => openMenu(e, node.id)}>
+              <MoreVert fontSize="small"/>
+            </IconButton>
+          </Box>
+        )}
+      </Draggable>
     );
-    qc.invalidateQueries(['collections']);
   };
 
   return (
-    <Box>
-      <Box display="flex" justifyContent="space-between" mb={1} alignItems="center">
+    <>
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
         <Typography variant="h6">{collection.name}</Typography>
-        <IconButton size="small" onClick={() => handleAddItem(null)}>
-          <Add />
-        </IconButton>
+        <IconButton size="small" onClick={() => openAddDialog(null)}><Add/></IconButton>
       </Box>
 
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId={String(collection._id)} type="ITEM">
+      <DragDropContext onDragEnd={onDragEnd}>
+        <Droppable droppableId={collection._id} type="ITEM">
           {prov => (
-            <div ref={prov.innerRef} {...prov.droppableProps}>
-              {Array.isArray(collection.items) && collection.items.map((item, idx) => (
-                <TreeItem
-                  key={item._id}
-                  item={item}
-                  index={idx}
-                  depth={0}
-                  collectionId={collection._id}
-                  onDelete={onDelete}
-                  onAddItem={handleAddItem}
-                  expandedMap={expandedMap}
-                  setExpandedMap={setExpandedMap}
-                />
+            <Box ref={prov.innerRef} {...prov.droppableProps}>
+              {tree.map(node => (
+                <React.Fragment key={node.id}>
+                  {renderNode(node, 0)}
+                  {node.type === 'folder' && expandedMap[node.id] !== false && node.children.map(ch =>
+                    renderNode(ch, 1)
+                  )}
+                </React.Fragment>
               ))}
               {prov.placeholder}
-            </div>
+            </Box>
           )}
         </Droppable>
       </DragDropContext>
 
-      <NewItemDialog
-        open={dialogOpen}
-        onClose={() => { setDialogOpen(false); setPendingParentId(null); }}
-        onCreate={handleCreate}
-      />
-    </Box>
+      {/* Диалог */}
+      <Dialog open={dialogOpen} onClose={handleDialogClose} fullWidth maxWidth="sm">
+        <DialogTitle>
+          {dialogMode === 'add' ? 'Новый элемент' : 'Переименовать элемент'}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Название"
+            value={formValues.name}
+            onChange={e => setFormValues(v => ({ ...v, name: e.target.value }))}
+            sx={{ mb:2 }}
+          />
+          {dialogMode === 'add' && (
+            <FormControl fullWidth sx={{ mb:2 }}>
+              <InputLabel>Тип</InputLabel>
+              <Select
+                value={formValues.type}
+                label="Тип"
+                onChange={e => setFormValues(v => ({ ...v, type: e.target.value }))}
+              >
+                <MenuItem value="folder">Папка</MenuItem>
+                <MenuItem value="request">Запрос</MenuItem>
+              </Select>
+            </FormControl>
+          )}
+          {(dialogMode==='add' && formValues.type==='request') ||
+           (dialogMode==='rename' && editingItem?.type==='request') ? (
+            <>
+              {/* Дополнительные поля для запроса */}
+              <FormControl fullWidth sx={{ mb:2 }}>
+                <InputLabel>Метод</InputLabel>
+                <Select
+                  value={formValues.method}
+                  label="Метод"
+                  onChange={e => setFormValues(v => ({ ...v, method: e.target.value }))}
+                >
+                  {['GET','POST','PUT','PATCH','DELETE','HEAD','OPTIONS']
+                    .map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                </Select>
+              </FormControl>
+
+              <TextField
+                fullWidth
+                label="URL"
+                value={formValues.url}
+                onChange={e => setFormValues(v => ({ ...v, url: e.target.value }))}
+                sx={{ mb:2 }}
+              />
+              <TextField
+                fullWidth multiline minRows={2}
+                label="Заголовки (JSON)"
+                value={formValues.headers}
+                onChange={e => setFormValues(v => ({ ...v, headers: e.target.value }))}
+                helperText='{"Content-Type":"application/json"}'
+                sx={{ mb:2 }}
+              />
+              <TextField
+                fullWidth multiline minRows={2}
+                label="Query Params (JSON)"
+                value={formValues.queryParams}
+                onChange={e => setFormValues(v => ({ ...v, queryParams: e.target.value }))}
+                helperText='{"q":"search"}'
+                sx={{ mb:2 }}
+              />
+              <TextField
+                fullWidth multiline minRows={3}
+                label="Тело запроса (JSON)"
+                value={formValues.body}
+                onChange={e => setFormValues(v => ({ ...v, body: e.target.value }))}
+                sx={{ mb:2 }}
+              />
+            </>
+          ) : null}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDialogClose}>Отмена</Button>
+          <Button
+            variant="contained"
+            onClick={handleDialogSubmit}
+            disabled={formValues.name.trim()===''}
+          >
+            {dialogMode==='add' ? 'Создать' : 'Сохранить'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Контекстное меню */}
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor) && menuItemId!==null}
+        onClose={closeMenu}
+      >
+        <MenuItem onClick={() => openRenameDialog(
+          collection.items.find(i => String(i.id)===String(menuItemId))
+        )}>
+          <Edit fontSize="small" sx={{mr:1}}/>Переименовать
+        </MenuItem>
+        <MenuItem onClick={() => handleDelete(menuItemId)}>
+          <Delete fontSize="small" sx={{mr:1}}/>Удалить
+        </MenuItem>
+        <MenuItem onClick={() => openAddDialog(menuItemId)}>
+          <Add fontSize="small" sx={{mr:1}}/>Добавить
+        </MenuItem>
+      </Menu>
+    </>
   );
 }
-CollectionTree.propTypes = {
+
+CollectionTree.propTypes = { 
   collection: PropTypes.shape({
     _id: PropTypes.string.isRequired,
     name: PropTypes.string,
-    items: PropTypes.arrayOf(PropTypes.object)
+    items: PropTypes.arrayOf(PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      name: PropTypes.string.isRequired,
+      type: PropTypes.oneOf(['folder','request']).isRequired,
+      parentId: PropTypes.string,
+      order: PropTypes.number,
+      request: PropTypes.object,
+    }))
   }).isRequired,
-  onDelete: PropTypes.func.isRequired
+  onSelect: PropTypes.func.isRequired,
 };

@@ -1,5 +1,4 @@
 // src/components/RequestForm.jsx
-
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Container,
@@ -21,10 +20,6 @@ import {
   DialogActions,
   Select,
   MenuItem,
-  List,
-  ListItem,
-  ListItemText,
-  useTheme,
   TextField,
   Box,
   Menu,
@@ -42,15 +37,10 @@ import {
   WifiTetheringRounded,
   BugReportRounded
 } from '@mui/icons-material';
-import {
-  DndContext,
-  closestCenter
-} from '@dnd-kit/core';
-import {
-  SortableContext
-} from '@dnd-kit/sortable';
+import { DndContext, closestCenter } from '@dnd-kit/core';
+import { SortableContext } from '@dnd-kit/sortable';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { styled, keyframes } from '@mui/material/styles';
+import { styled, keyframes, useTheme } from '@mui/material/styles';
 import axios from 'axios';
 import { CollectionTree } from './Collections/CollectionTree';
 import ApiInput from './Api/ApiInput';
@@ -91,7 +81,7 @@ const AnimatedButton = styled(Button)({
   }
 });
 
-const RequestForm = () => {
+export default function RequestForm() {
   const theme = useTheme();
   const queryClient = useQueryClient();
 
@@ -108,12 +98,12 @@ const RequestForm = () => {
   });
   const [collectionsMenu, setCollectionsMenu] = useState(null);
   const [apiUrl, setApiUrl] = useState('');
-  const [assertions, setAssertions] = useState([]);             // массив проверок
-  const [assertionResults, setAssertionResults] = useState([]); // результаты проверок
+  const [assertions, setAssertions] = useState([]);             
+  const [assertionResults, setAssertionResults] = useState([]); 
   const [method, setMethod] = useState('GET');
   const [headers, setHeaders] = useState('{}');
   const [body, setBody] = useState('');
-  const [response, setResponse] = useState(null);              // ответ сервера
+  const [response, setResponse] = useState(null);              
   const [requestHistory, setRequestHistory] = useState([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [queryParams, setQueryParams] = useState('{}');
@@ -139,9 +129,8 @@ const RequestForm = () => {
   const fetchRequestHistory = async () => {
     setLoadingHistory(true);
     try {
-      const token = localStorage.getItem('token');
       const resp = await axios.get('/api/requests/history', {
-        headers: { Authorization: `Bearer ${token}` }
+        withCredentials: true
       });
       const parsedRequests = resp.data.map(parseServerRequest);
       setRequestHistory(parsedRequests);
@@ -293,11 +282,12 @@ const RequestForm = () => {
               queryParams: {}
             }
           })
-        }
+        },
+        { withCredentials: true }
       );
 
-      queryClient.setQueryData(['collections'], prev =>
-        prev.map(coll =>
+      queryClient.setQueryData(['collections'], (prev) =>
+        prev.map((coll) =>
           coll._id === requestState.collectionId
             ? { ...coll, items: [...coll.items, data] }
             : coll
@@ -321,7 +311,7 @@ const RequestForm = () => {
     queryFn: async () => {
       try {
         const { data } = await axios.get('/api/collections', {
-          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+          withCredentials: true
         });
         return data.map(c => ({
           ...c,
@@ -335,7 +325,12 @@ const RequestForm = () => {
   });
 
   const { mutate: createCollection } = useMutation({
-    mutationFn: (name) => axios.post('/api/collections', { name }),
+    mutationFn: (name) =>
+      axios.post(
+        '/api/collections',
+        { name },
+        { withCredentials: true }
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['collections'], exact: true });
       setNewCollectionDialogOpen(false);
@@ -345,7 +340,8 @@ const RequestForm = () => {
   });
 
   const { mutate: deleteItem } = useMutation({
-    mutationFn: (itemId) => axios.delete(`/api/collections/items/${itemId}`),
+    mutationFn: (itemId) =>
+      axios.delete(`/api/collections/items/${itemId}`, { withCredentials: true }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['collections'] }),
     onError: (err) => console.error('Ошибка при удалении:', err)
   });
@@ -355,7 +351,12 @@ const RequestForm = () => {
       const endpoint = item._id
         ? `/api/collections/items/${item._id}`
         : `/api/collections/${requestState.collectionId}/items`;
-      const { data } = await axios[endpoint ? 'put' : 'post'](endpoint, item);
+      const { data } = await axios.request({
+        method: item._id ? 'put' : 'post',
+        url: endpoint,
+        data: item,
+        withCredentials: true
+      });
       return data;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['collections'] })
@@ -363,7 +364,7 @@ const RequestForm = () => {
 
   const handleCollectionSelect = (collectionId) => {
     setRequestState(prev => ({ ...prev, collectionId, itemId: null }));
-    setAssertions([]);            // сбрасываем assertions при смене коллекции
+    setAssertions([]);
     setAssertionResults([]);
     setResponse(null);
   };
@@ -378,7 +379,7 @@ const RequestForm = () => {
         collectionId: item.collectionId,
         itemId: item.id
       });
-      setAssertions([]);            // сбросить предыдущие assertions
+      setAssertions([]);
       setAssertionResults([]);
       setResponse(null);
     }
@@ -391,10 +392,15 @@ const RequestForm = () => {
         await axios.patch(
           `/api/collections/${requestState.collectionId}/reorder`,
           {
-            itemId: active.id,
-            newParentId: over.id,
-            newIndex: over.data.current.sortable.index
-          }
+            items: [
+              {
+                id: active.id,
+                parentId: over.id === String(requestState.collectionId) ? null : over.id,
+                order: over.data.current.sortable.index
+              }
+            ]
+          },
+          { withCredentials: true }
         );
         queryClient.invalidateQueries(['collections']);
       } catch (err) {
@@ -437,13 +443,17 @@ const RequestForm = () => {
       }
 
       const startTime = Date.now();
-      const res = await axios.post('/api/requests/makeRequest', {
-        method: method.toLowerCase(),
-        url: targetUrl,
-        headers: parsedHeaders,
-        data: parsedBody,
-        validateStatus: () => true
-      });
+      const res = await axios.post(
+        '/api/requests/makeRequest',
+        {
+          method: method.toLowerCase(),
+          url: targetUrl,
+          headers: parsedHeaders,
+          data: parsedBody,
+          validateStatus: () => true
+        },
+        { withCredentials: true }
+      );
       const latency = Date.now() - startTime;
 
       const newRequest = {
@@ -470,7 +480,7 @@ const RequestForm = () => {
       );
       setAssertionResults(results);
 
-      // Автосохранение в коллекцию (если выбрана)
+      // Автосохранение в коллекцию (если задана)
       if (requestState.collectionId) {
         saveRequest.mutate({
           ...requestState,
@@ -486,8 +496,8 @@ const RequestForm = () => {
       await fetchRequestHistory();
       setResponse(newRequest.response);
     } catch (err) {
-      setError(err.message);
       console.error('Request Error:', err);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
@@ -524,19 +534,15 @@ const RequestForm = () => {
   );
 
   const urlSuggestions = React.useMemo(
-    () => [
-      ...new Set(
-        requestHistory.map(req => req?.url).filter(url => url)
-      )
-    ],
+    () => [...new Set(requestHistory.map(req => req?.url).filter(url => url))],
     [requestHistory]
   );
 
-  // === Рендер ===
   return (
     <Container maxWidth="xl" sx={{ py: 4, height: '100vh' }}>
       <Grid container spacing={3} sx={{ height: '100%' }}>
-        {/* ===== Секция коллекций ===== */}
+
+        {/* Секция коллекций */}
         <Grid item xs={12} md={3} lg={2}>
           <Paper sx={{ p: 2, height: '100%', overflow: 'auto' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
@@ -547,7 +553,7 @@ const RequestForm = () => {
                 aria-haspopup="true"
                 aria-expanded={Boolean(collectionsMenu)}
                 id="collections-menu-button"
-                onClick={e => setCollectionsMenu(e.currentTarget)}
+                onClick={(e) => setCollectionsMenu(e.currentTarget)}
                 sx={{ ml: 'auto' }}
               >
                 <Add />
@@ -561,7 +567,7 @@ const RequestForm = () => {
                     key={collection._id}
                     collection={collection}
                     onSelect={handleRequestSelect}
-                    onContextMenu={e => setCollectionsMenu(e.currentTarget)}
+                    onContextMenu={(e) => setCollectionsMenu(e.currentTarget)}
                     selected={requestState.collectionId === collection._id}
                     onDelete={deleteItem}
                   />
@@ -571,7 +577,7 @@ const RequestForm = () => {
           </Paper>
         </Grid>
 
-        {/* ===== Основная область (форма + ответ) ===== */}
+        {/* Основная область: форма + ответ */}
         <Grid item xs={12} md={9} lg={10} sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
           <StyledPaper sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 0 }}>
             <Tabs
@@ -586,32 +592,29 @@ const RequestForm = () => {
             >
               <Tab label="Запрос" icon={<CodeRounded fontSize="small" />} sx={{ minHeight: 48 }} />
               <Tab label="История" icon={<HistoryRounded fontSize="small" />} sx={{ minHeight: 48 }} />
-              <Tab label="WebSocket" icon={<WifiTetheringRounded fontSize="small" />} sx={{ minHeight: 48 }} />
-              {/* <Tab label="Тесты" icon={<BugReportRounded fontSize="small" />} sx={{ minHeight: 48 }} />
-              <Tab label="Настройки" icon={<SettingsRounded fontSize="small" />} sx={{ minHeight: 48 }} /> */}
+              <Tab label="WebSocket" icon={<WifiTetheringRounded fontSize="small" />} />
+              <Tab label="Тесты" icon={<BugReportRounded fontSize="small" />} />
+              <Tab label="Настройки" icon={<SettingsRounded fontSize="small" />} sx={{ minHeight: 48 }} />
             </Tabs>
 
-            {/* === Если выбрана вкладка WebSocket (index 2) === */}
             {activeTab === 2 ? (
               <Box sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
                 <WebSocketClient collectionId={requestState.collectionId} />
               </Box>
             ) : (
               <Grid container spacing={3} sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-                {/* ===== Колонка «Форма & Тесты & Настройки» ===== */}
+                {/* Левая часть: форма */}
                 <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
                   <StyledPaper sx={{ height: '100%', p: 2, display: 'flex', flexDirection: 'column' }}>
                     {activeTab === 0 ? (
-                      /* === Вкладка «Запрос» === */
                       <Stack spacing={3} sx={{ flex: 1 }}>
                         <SectionHeader title="Настройка запроса" icon={<SendRounded />} sectionKey="request" />
-
                         {expandedSections.request && (
                           <Stack spacing={2}>
                             <Grid container spacing={1} alignItems="center">
-                              <div item xs={3}>
+                              <Grid item xs={3}>
                                 <MethodSelector value={method} onChange={setMethod} fullWidth />
-                              </div>
+                              </Grid>
                               <Grid item xs={9}>
                                 <ApiInput
                                   value={apiUrl}
@@ -621,25 +624,35 @@ const RequestForm = () => {
                                 />
                               </Grid>
                             </Grid>
-
                             <Divider sx={{ my: 1 }} />
-
                             <SectionHeader title="Расширенные настройки" icon={<SettingsRounded />} sectionKey="advanced" />
-
                             {expandedSections.advanced && (
                               <Stack spacing={2}>
                                 <AuthInput value={auth} onChange={setAuth} compact />
                                 <QueryParamsInput value={queryParams} onChange={setQueryParams} />
                                 <HeadersInput value={headers} onChange={setHeaders} />
                                 <BodyInput value={body} onChange={setBody} method={method} />
-
-                                {/* ===== Блок AssertionsInput (функциональные проверки) ===== */}
                                 <AssertionsInput onChange={setAssertions} />
+                                {assertionResults.length > 0 && (
+                                  <Box>
+                                    <Typography variant="subtitle1" gutterBottom>
+                                      Результаты проверок
+                                    </Typography>
+                                    {assertionResults.map(r => (
+                                      <Typography
+                                        key={r.assertionId}
+                                        color={r.passed ? 'success.main' : 'error.main'}
+                                        sx={{ mb: 1 }}
+                                      >
+                                        {r.message}
+                                      </Typography>
+                                    ))}
+                                  </Box>
+                                )}
                               </Stack>
                             )}
                           </Stack>
                         )}
-
                         <AnimatedButton
                           fullWidth
                           variant="contained"
@@ -659,7 +672,6 @@ const RequestForm = () => {
                         </AnimatedButton>
                       </Stack>
                     ) : activeTab === 1 ? (
-                      /* === Вкладка «История» === */
                       <Stack spacing={1} sx={{ flex: 1, overflow: 'auto' }}>
                         {loadingHistory ? (
                           <LinearProgress />
@@ -668,7 +680,7 @@ const RequestForm = () => {
                             В истории запросов не найдено
                           </Typography>
                         ) : (
-                          requestHistory.map(req => (
+                          requestHistory.map((req) => (
                             <Paper
                               key={req.id}
                               sx={{
@@ -684,8 +696,6 @@ const RequestForm = () => {
                                 setBody(req.body ? JSON.stringify(req.body, null, 2) : '');
                                 setQueryParams(JSON.stringify(req.query, null, 2));
                                 setResponse(req.response);
-                                setAssertions([]);            // сброс assertions
-                                setAssertionResults([]);
                                 setActiveTab(0);
                               }}
                             >
@@ -713,16 +723,14 @@ const RequestForm = () => {
                         )}
                       </Stack>
                     ) : activeTab === 3 ? (
-                      /* === Вкладка «Тесты» === */
                       <TestsTab collectionId={requestState.collectionId} />
                     ) : (
-                      /* === Вкладка «Настройки» === */
                       <EnvironmentVariables variables={envVars} onChange={setEnvVars} />
                     )}
                   </StyledPaper>
                 </Grid>
 
-                {/* ===== Колонка «Ответ + Результаты проверок» ===== */}
+                {/* Правая часть: ответ */}
                 <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
                   <StyledPaper sx={{ height: '100%', p: 0 }}>
                     <Stack
@@ -746,48 +754,14 @@ const RequestForm = () => {
                         />
                       )}
                     </Stack>
-
                     {loading ? (
                       <LinearProgress sx={{ height: 2 }} />
                     ) : response ? (
-                      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        {/* ===== Секция с JSON-ответом ===== */}
-                        <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-                          <ResponseDisplay data={response.data} headers={response.headers} />
-                        </Box>
-
-                        {/* ===== Секция с результатами функциональных проверок ===== */}
-                        {assertionResults.length > 0 && (
-                          <Box sx={{ p: 2, borderTop: '1px solid #ddd', maxHeight: '200px', overflow: 'auto' }}>
-                            <Typography variant="subtitle2" gutterBottom>
-                              Результаты проверок ({assertionResults.length})
-                            </Typography>
-                            {assertionResults.map(res => (
-                              <Box
-                                key={res.assertionId}
-                                sx={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  bgcolor: res.passed ? 'success.light' : 'error.light',
-                                  color: res.passed ? 'success.dark' : 'error.dark',
-                                  p: 1,
-                                  mb: 1,
-                                  borderRadius: 1
-                                }}
-                              >
-                                <Typography variant="body2" sx={{ mr: 2, flex: 1 }}>
-                                  [{res.type} {res.operator} "{res.expected}"] ➔{' '}
-                                  {res.property ? `${res.property}: ` : ''}
-                                  {String(res.actual)}
-                                </Typography>
-                                <Typography variant="body2" fontWeight="bold">
-                                  {res.passed ? 'Пройдено' : 'Не пройдено'}
-                                </Typography>
-                              </Box>
-                            ))}
-                          </Box>
-                        )}
-                      </Box>
+                      <ResponseDisplay
+                        data={response.data}
+                        headers={response.headers}
+                        sx={{ height: 'calc(100% - 48px)', overflow: 'auto', p: 2 }}
+                      />
                     ) : (
                       <Stack
                         spacing={2}
@@ -806,12 +780,11 @@ const RequestForm = () => {
                 </Grid>
               </Grid>
             )}
-
           </StyledPaper>
         </Grid>
       </Grid>
 
-      {/* ===== Меню управления коллекциями ===== */}
+      {/* Меню управления коллекциями */}
       <Menu
         anchorEl={collectionsMenu}
         open={Boolean(collectionsMenu)}
@@ -827,34 +800,19 @@ const RequestForm = () => {
         >
           Новая коллекция
         </MenuItem>
-        <MenuItem
-          onClick={() => {
-            setNewItemDialogOpen(true);
-            setCollectionsMenu(null);
-          }}
-        >
-          Новый элемент
-        </MenuItem>
       </Menu>
 
-      {/* ===== Диалог «Новый элемент» ===== */}
       <Portal>
         <Dialog
           open={newItemDialogOpen}
           onClose={() => setNewItemDialogOpen(false)}
-          role="dialog"
-          aria-labelledby="new-item-dialog"
-          aria-modal="true"
-          disableEnforceFocus
-          disablePortal
-          disableScrollLock
-          componentsProps={{ backdrop: { style: { pointerEvents: 'none' } } }}
+          fullWidth
         >
-          <DialogTitle id="new-item-dialog">Создать новый элемент</DialogTitle>
-          <DialogContent>
+          <DialogTitle>Создать новый элемент</DialogTitle>
+          <DialogContent sx={{ display: 'flex', flexDirection: 'column', gap: 2, width: 400 }}>
             <Select
               value={newItemType}
-              onChange={e => setNewItemType(e.target.value)}
+              onChange={(e) => setNewItemType(e.target.value)}
               fullWidth
               sx={{ mb: 2 }}
             >
@@ -865,7 +823,7 @@ const RequestForm = () => {
               label="Название элемента"
               fullWidth
               value={newItemName}
-              onChange={e => setNewItemName(e.target.value)}
+              onChange={(e) => setNewItemName(e.target.value)}
               autoFocus
             />
           </DialogContent>
@@ -882,7 +840,7 @@ const RequestForm = () => {
         </Dialog>
       </Portal>
 
-      {/* ===== Отображение ошибок ===== */}
+      {/* Отображение ошибок */}
       {error && (
         <Alert severity="error" sx={{ position: 'fixed', bottom: 20, right: 20 }}>
           {error}
@@ -890,6 +848,4 @@ const RequestForm = () => {
       )}
     </Container>
   );
-};
-
-export default RequestForm;
+}
