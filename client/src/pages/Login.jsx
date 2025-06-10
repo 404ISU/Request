@@ -40,9 +40,8 @@ export default function Login() {
       
       if(response.data?.user) {
         login(response.data.user); // Данные теперь в response.data.user
-        navigate('/user-profile');
-      } // Теперь передаётся корректный объект
-      navigate('/user-profile');
+        navigate('/request'); // Перенаправляем на страницу запросов вместо профиля
+      }
     } catch (error) {
       console.error('Ошибка входа:', error);
       toast.error(error.response?.data?.message || 'Неверный логин или пароль');
@@ -64,7 +63,7 @@ export default function Login() {
           margin="normal"
           required
         />
-<TextField
+        <TextField
           label="Пароль"
           name="password"
           type={showPassword ? 'text' : 'password'} // Переключение типа поля

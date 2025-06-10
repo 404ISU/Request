@@ -1,5 +1,5 @@
 // components/Navbar/Navbar.js
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -71,6 +71,12 @@ const Navbar = () => {
   const isMobile = useMediaQuery('(max-width:768px)');
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  // Закрываем меню при изменении состояния пользователя
+  useEffect(() => {
+    setAnchorEl(null);
+    setMobileOpen(false);
+  }, [user]);
+
   const handleLogout = async () => {
     try {
       await axios.post('/logout', null, { withCredentials: true });
@@ -81,6 +87,15 @@ const Navbar = () => {
     }
   };
 
+  const handleProfileClick = () => {
+    setAnchorEl(null);
+    navigate('/user-profile');
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
   const renderDesktopMenu = () => (
     <Box sx={{ display: 'flex', alignItems: 'center' }}>
       <NavLink component={Link} to="/documentation" color="inherit">
@@ -89,9 +104,8 @@ const Navbar = () => {
 
       {user ? (
         <>
-          
           <NavLink component={Link} to="/request" color="inherit" >
-          <CloudUpload className="w-24 h-24"/> Запрос
+            <CloudUpload className="w-24 h-24"/> Запрос
           </NavLink>
 
           {user.role === 'organization' && (
@@ -117,7 +131,7 @@ const Navbar = () => {
           <Menu
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
-            onClose={() => setAnchorEl(null)}
+            onClose={handleMenuClose}
             PaperProps={{
               sx: {
                 mt: 1.5,
@@ -133,8 +147,7 @@ const Navbar = () => {
             }}
           >
             <MenuItem 
-              component={Link} 
-              to="/user-profile"
+              onClick={handleProfileClick}
               sx={{ color: 'text.primary' }}
             >
               <Person sx={{ mr: 2, color: 'primary.main' }} /> Профиль
@@ -150,7 +163,7 @@ const Navbar = () => {
       ) : (
         <>
           <NavLink component={Link} to="/register" color="inherit">
-          <VpnKeyIcon/> Регистрация
+            <VpnKeyIcon/> Регистрация
           </NavLink>
           <NavLink component={Link} to="/login" color="inherit">
             <LoginIcon /> Вход
@@ -181,7 +194,7 @@ const Navbar = () => {
         }}
       >
         {user ? [
-          <MenuItem key="profile" component={Link} to="/user-profile">
+          <MenuItem key="profile" onClick={handleProfileClick}>
             <Person sx={{ mr: 2 }} /> Профиль
           </MenuItem>,
           <MenuItem key="logout" onClick={handleLogout}>
@@ -198,7 +211,6 @@ const Navbar = () => {
         <MenuItem component={Link} to="/request">
           <AssignmentInd sx={{ mr: 2 }} /> Запрос
         </MenuItem>
-
       </Menu>
     </>
   );
@@ -226,7 +238,7 @@ const Navbar = () => {
             }
           }}
         >
-                    <CloudUpload           sx={{
+          <CloudUpload sx={{
             fontFamily: 'Montserrat',
             fontWeight: 700,
             letterSpacing: 1.1,
@@ -235,7 +247,6 @@ const Navbar = () => {
             '&:hover': {
               opacity: 0.9
             },
-            
           }}/>
         </Typography>
 
