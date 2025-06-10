@@ -17,7 +17,10 @@ const loadTestSchema = new mongoose.Schema({
   },
   // Результаты (сохраним по окончании воркера)
   results: mongoose.Schema.Types.Mixed,
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+  // Добавляем связь с пользователем
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  collectionId: { type: mongoose.Schema.Types.ObjectId, ref: 'Collection' }
 });
 
 module.exports = mongoose.model('LoadTest', loadTestSchema);

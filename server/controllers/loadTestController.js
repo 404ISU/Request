@@ -7,7 +7,10 @@ class LoadTestController {
   // Создать новый «нагрузочный» тест
   async create(req, res) {
     try {
-      const lt = new LoadTest(req.body);
+      const lt = new LoadTest({
+        ...req.body,
+        userId: req.user._id // Используем _id из объекта пользователя
+      });
       await lt.save();
       res.status(201).json(lt);
     } catch (err) {
@@ -16,31 +19,34 @@ class LoadTestController {
   }
 
   // Запустить тест в фоне (воркер)
-async run(req, res) {
-  const { id } = req.params;
-  const lt = await LoadTest.findById(id);
-  if (!lt) return res.status(404).json({ message: 'Not found' });
+  async run(req, res) {
+    const { id } = req.params;
+    const lt = await LoadTest.findOne({ _id: id, userId: req.user._id });
+    if (!lt) return res.status(404).json({ message: 'Not found' });
 
-  const worker = new Worker(path.join(__dirname, '../workers/loadTestWorker.js'), {
-    workerData: { testId: id }
-  });
+    const worker = new Worker(path.join(__dirname, '../workers/loadTestWorker.js'), {
+      workerData: { testId: id }
+    });
 
-  worker.on('message', msg => {
-    console.log('Worker message:', msg);
-  });
-  worker.on('error', err => console.error('Worker error:', err));
-  worker.on('exit', code => console.log(`Worker exited with code ${code}`));
+    worker.on('message', msg => {
+      console.log('Worker message:', msg);
+    });
+    worker.on('error', err => console.error('Worker error:', err));
+    worker.on('exit', code => console.log(`Worker exited with code ${code}`));
 
-  res.json({ message: 'Load test started' });
-}
+    res.json({ message: 'Load test started' });
+  }
 
   // Получить статус/результаты теста
   async getStatus(req, res) {
     try {
       const { id } = req.params;
-      const lt = await LoadTest.findById(id);
+      const lt = await LoadTest.findOne({ _id: id, userId: req.user._id });
       if (!lt) return res.status(404).json({ message: 'Not found' });
-      res.json({ results: lt.results });
+      res.json({
+        name: lt.name,
+        results: lt.results
+      });
     } catch (err) {
       res.status(500).json({ message: err.message });
     }
@@ -49,7 +55,7 @@ async run(req, res) {
   // Получить список всех нагрузочных тестов
   async getAllLoadTests(req, res) {
     try {
-      const filter = {};
+      const filter = { userId: req.user._id }; // Используем _id из объекта пользователя
       if (req.query.collectionId) {
         filter.collectionId = req.query.collectionId;
       }
@@ -64,7 +70,7 @@ async run(req, res) {
   async delete(req, res) {
     try {
       const { id } = req.params;
-      const lt = await LoadTest.findByIdAndDelete(id);
+      const lt = await LoadTest.findOneAndDelete({ _id: id, userId: req.user._id });
       if (!lt) return res.status(404).json({ message: 'Not found' });
       res.json({ message: 'Deleted' });
     } catch (err) {

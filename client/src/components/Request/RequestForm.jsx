@@ -35,7 +35,8 @@ import {
   CollectionsBookmark,
   Add,
   WifiTetheringRounded,
-  BugReportRounded
+  BugReportRounded,
+  AssessmentRounded
 } from '@mui/icons-material';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext } from '@dnd-kit/sortable';
@@ -54,6 +55,7 @@ import EnvironmentVariables from './Api/EnvironmentVariables';
 import AuthInput from './Api/AuthInput';
 import WebSocketClient from './webSocket/WebSocketClient';
 import TestsTab from './Tests/TestsTab';
+import LoadTestTab from './Tests/Load/LoadTestTab';
 
 const pulse = keyframes`
   0% { opacity: 1; }
@@ -563,6 +565,10 @@ export default function RequestForm() {
     [requestHistory]
   );
 
+  const handleTabChange = (_, newValue) => {
+    setActiveTab(newValue);
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: 4, height: '100vh' }}>
       <Grid container spacing={3} sx={{ height: '100%' }}>
@@ -607,25 +613,28 @@ export default function RequestForm() {
           <StyledPaper sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 0 }}>
             <Tabs
               value={activeTab}
-              onChange={(_, v) => setActiveTab(v)}
-              sx={{
-                px: 2,
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-                '& .MuiTabs-indicator': { height: 2 }
-              }}
+              onChange={handleTabChange}
+              variant="scrollable"
+              scrollButtons="auto"
+              sx={{ borderBottom: 1, borderColor: 'divider' }}
             >
-              <Tab label="Запрос" icon={<CodeRounded fontSize="small" />} sx={{ minHeight: 48 }} />
-              <Tab label="История" icon={<HistoryRounded fontSize="small" />} sx={{ minHeight: 48 }} />
-              <Tab label="WebSocket" icon={<WifiTetheringRounded fontSize="small" />} />
-              <Tab label="Тесты" icon={<BugReportRounded fontSize="small" />} />
-              <Tab label="Настройки" icon={<SettingsRounded fontSize="small" />} sx={{ minHeight: 48 }} />
+              <Tab label="Запрос" icon={<SendRounded />} />
+              <Tab label="История" icon={<HistoryRounded />} />
+              <Tab label="WebSocket" icon={<WifiTetheringRounded />} />
+              <Tab label="Нагрузочное тестирование" icon={<AssessmentRounded />} />
+              <Tab label="Переменные" icon={<SettingsRounded />} />
             </Tabs>
 
             {activeTab === 2 ? (
               <Box sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
                 <WebSocketClient collectionId={requestState.collectionId} />
               </Box>
+            ) : activeTab === 3 ? (
+              <Box sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
+                <LoadTestTab collectionId={requestState.collectionId} />
+              </Box>
+            ) : activeTab === 4 ? (
+              <EnvironmentVariables variables={envVars} onChange={setEnvVars} />
             ) : (
               <Grid container spacing={3} sx={{ flex: 1, overflow: 'auto', p: 2 }}>
                 {/* Левая часть: форма */}
@@ -747,62 +756,60 @@ export default function RequestForm() {
                           ))
                         )}
                       </Stack>
-                    ) : activeTab === 3 ? (
-                      <TestsTab collectionId={requestState.collectionId} />
-                    ) : (
-                      <EnvironmentVariables variables={envVars} onChange={setEnvVars} />
-                    )}
+                    ) : null}
                   </StyledPaper>
                 </Grid>
 
                 {/* Правая часть: ответ */}
-                <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
-                  <StyledPaper sx={{ height: '100%', p: 0 }}>
-                    <Stack
-                      direction="row"
-                      alignItems="center"
-                      spacing={1}
-                      sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
-                    >
-                      <Typography variant="subtitle1" fontWeight={600}>Ответ</Typography>
-                      {response?.status && (
-                        <Chip
-                          label={`${response.status} • ${response.latency}ms`}
-                          size="small"
-                          color={
-                            response.status >= 400
-                              ? 'error'
-                              : response.status >= 200
-                              ? 'success'
-                              : 'info'
-                          }
-                        />
-                      )}
-                    </Stack>
-                    {loading ? (
-                      <LinearProgress sx={{ height: 2 }} />
-                    ) : response ? (
-                      <ResponseDisplay
-                        data={response.data}
-                        headers={response.headers}
-                        sx={{ height: 'calc(100% - 48px)', overflow: 'auto', p: 2 }}
-                      />
-                    ) : (
+                {activeTab === 0 && (
+                  <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
+                    <StyledPaper sx={{ height: '100%', p: 0 }}>
                       <Stack
-                        spacing={2}
-                        sx={{
-                          height: '100%',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'text.secondary'
-                        }}
+                        direction="row"
+                        alignItems="center"
+                        spacing={1}
+                        sx={{ p: 2, borderBottom: `1px solid ${theme.palette.divider}` }}
                       >
-                        <ReplayRounded sx={{ fontSize: 48, opacity: 0.5 }} />
-                        <Typography variant="body2">Отправьте запрос, чтобы увидеть ответ</Typography>
+                        <Typography variant="subtitle1" fontWeight={600}>Ответ</Typography>
+                        {response?.status && (
+                          <Chip
+                            label={`${response.status} • ${response.latency}ms`}
+                            size="small"
+                            color={
+                              response.status >= 400
+                                ? 'error'
+                                : response.status >= 200
+                                ? 'success'
+                                : 'info'
+                            }
+                          />
+                        )}
                       </Stack>
-                    )}
-                  </StyledPaper>
-                </Grid>
+                      {loading ? (
+                        <LinearProgress sx={{ height: 2 }} />
+                      ) : response ? (
+                        <ResponseDisplay
+                          data={response.data}
+                          headers={response.headers}
+                          sx={{ height: 'calc(100% - 48px)', overflow: 'auto', p: 2 }}
+                        />
+                      ) : (
+                        <Stack
+                          spacing={2}
+                          sx={{
+                            height: '100%',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'text.secondary'
+                          }}
+                        >
+                          <ReplayRounded sx={{ fontSize: 48, opacity: 0.5 }} />
+                          <Typography variant="body2">Отправьте запрос, чтобы увидеть ответ</Typography>
+                        </Stack>
+                      )}
+                    </StyledPaper>
+                  </Grid>
+                )}
               </Grid>
             )}
           </StyledPaper>

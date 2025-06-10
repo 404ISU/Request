@@ -152,7 +152,7 @@ const WebSocketClient = () => {
         followRedirects: true,     // Follow redirects if any
         maxPayload: 1048576        // 1MB max payload
       };
-
+      
       // Добавляем базовые заголовки
       const defaultHeaders = {
         'Origin': window.location.origin,

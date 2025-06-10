@@ -1,40 +1,18 @@
 // src/components/Tests/TestsTab.jsx
-import React, { useState } from 'react';
-import { Box, Tabs, Tab } from '@mui/material';
-import AssessmentRounded from '@mui/icons-material/AssessmentRounded';
-import LoadTestForm from './Load/LoadTestForm';
-import LoadTestsList from './Load/LoadTestsList';
-import LoadTestResult from './Load/LoadTestResult';
+import React from 'react';
+import { Box, Typography } from '@mui/material';
+import BugReportRounded from '@mui/icons-material/BugReportRounded';
 
 export default function TestsTab({ collectionId }) {
-  const [tab, setTab] = useState('load');
-  const [selectedTestId, setSelectedTestId] = useState(null);
-
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <Tabs
-        value={tab}
-        onChange={(_, v) => setTab(v)}
-        sx={{ borderBottom: 1, borderColor: 'divider' }}
-      >
-        <Tab label="Нагрузочные тесты" value="load" icon={<AssessmentRounded />} />
-      </Tabs>
-
-      <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-        {tab === 'load' && (
-          <>
-            <LoadTestForm
-              collectionId={collectionId}
-              onCreated={id => setSelectedTestId(id)}
-            />
-            <LoadTestsList
-              collectionId={collectionId}
-              onSelect={id => setSelectedTestId(id)}
-            />
-            <LoadTestResult testId={selectedTestId} />
-          </>
-        )}
-      </Box>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <BugReportRounded sx={{ fontSize: 48, color: 'text.secondary', mb: 2 }} />
+      <Typography variant="h6" color="text.secondary">
+        Функциональное тестирование
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+        В разработке...
+      </Typography>
     </Box>
   );
 }

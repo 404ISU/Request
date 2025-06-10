@@ -1,16 +1,17 @@
 // src/components/Tests/Load/LoadTestResult.jsx
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
+import axios from 'axios';
 import {
   Box,
   Typography,
-  CircularProgress,
   Paper,
   Grid,
-  Card,
-  CardContent,
-  LinearProgress,
+  CircularProgress,
   Alert,
-  Divider
+  Divider,
+  Card,
+  CardContent
 } from '@mui/material';
 import {
   LineChart,
@@ -21,7 +22,6 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import axios from 'axios';
 
 const formatLatency = (ms) => {
   if (ms < 1000) return `${ms}ms`;
@@ -51,191 +51,201 @@ const StatCard = ({ title, value, subtitle, color }) => (
 );
 
 export default function LoadTestResult({ testId }) {
-  const [status, setStatus] = useState('pending');
-  const [results, setResults] = useState(null);
-  const [error, setError] = useState(null);
+  const { data: test, isLoading, error } = useQuery({
+    queryKey: ['loadTest', testId],
+    queryFn: async () => {
+      const { data } = await axios.get(`/api/tests/load/${testId}/status`, {
+        withCredentials: true
+      });
+      return data;
+    },
+    refetchInterval: 5000 // Обновляем каждые 5 секунд
+  });
 
-  useEffect(() => {
-    if (!testId) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const { data } = await axios.get(`/api/tests/load/${testId}/status`);
-        if (data.results) {
-          setResults(data.results);
-          setStatus('completed');
-          clearInterval(interval);
-        } else {
-          setStatus('running');
-        }
-      } catch (e) {
-        setError('Ошибка при получении статуса теста');
-        clearInterval(interval);
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [testId]);
-
-  if (!testId) {
+  if (isLoading) {
     return (
-      <Alert severity="info">
-        Нажмите "Показать результат" у теста, чтобы увидеть детали.
-      </Alert>
+      <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
+        <CircularProgress />
+      </Box>
     );
   }
 
   if (error) {
-    return <Alert severity="error">{error}</Alert>;
-  }
-
-  if (status === 'running') {
     return (
-      <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-        <CircularProgress size={20} />
-        <Typography>Идет нагрузочное тестирование…</Typography>
-      </Box>
+      <Alert severity="error" sx={{ m: 2 }}>
+        Ошибка загрузки результатов: {error.message}
+      </Alert>
     );
   }
 
-  if (status === 'completed' && results) {
-    const {
-      totalRequests,
-      success,
-      failure,
-      latencies,
-      averageLatency
-    } = results;
-
-    const successRate = ((success / totalRequests) * 100).toFixed(1);
-    const failureRate = ((failure / totalRequests) * 100).toFixed(1);
-
-    // Подготовка данных для графика
-    const latencyData = latencies.map((latency, index) => ({
-      request: index + 1,
-      latency
-    }));
-
-    // Расчет перцентилей
-    const sortedLatencies = [...latencies].sort((a, b) => a - b);
-    const p50 = sortedLatencies[Math.floor(sortedLatencies.length * 0.5)];
-    const p90 = sortedLatencies[Math.floor(sortedLatencies.length * 0.9)];
-    const p95 = sortedLatencies[Math.floor(sortedLatencies.length * 0.95)];
-    const p99 = sortedLatencies[Math.floor(sortedLatencies.length * 0.99)];
-
+  if (!test?.results) {
     return (
-      <Box sx={{ mt: 2 }}>
-        <Typography variant="h6" gutterBottom>
-          Результаты нагрузочного теста
-        </Typography>
-
-        <Grid container spacing={3} sx={{ mb: 3 }}>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Всего запросов"
-              value={formatNumber(totalRequests)}
-              color="primary"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Успешных"
-              value={`${successRate}%`}
-              subtitle={`${formatNumber(success)} запросов`}
-              color="success.main"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Ошибок"
-              value={`${failureRate}%`}
-              subtitle={`${formatNumber(failure)} запросов`}
-              color="error.main"
-            />
-          </Grid>
-          <Grid item xs={12} sm={6} md={3}>
-            <StatCard
-              title="Среднее время"
-              value={formatLatency(averageLatency)}
-              color="info.main"
-            />
-          </Grid>
-        </Grid>
-
-        <Paper sx={{ p: 2, mb: 3 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            Распределение времени ответа
-          </Typography>
-          <Grid container spacing={2}>
-            <Grid item xs={12} sm={6} md={3}>
-              <Typography variant="body2" color="textSecondary">
-                P50 (медиана)
-              </Typography>
-              <Typography variant="h6">
-                {formatLatency(p50)}
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Typography variant="body2" color="textSecondary">
-                P90
-              </Typography>
-              <Typography variant="h6">
-                {formatLatency(p90)}
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Typography variant="body2" color="textSecondary">
-                P95
-              </Typography>
-              <Typography variant="h6">
-                {formatLatency(p95)}
-              </Typography>
-            </Grid>
-            <Grid item xs={12} sm={6} md={3}>
-              <Typography variant="body2" color="textSecondary">
-                P99
-              </Typography>
-              <Typography variant="h6">
-                {formatLatency(p99)}
-              </Typography>
-            </Grid>
-          </Grid>
-        </Paper>
-
-        <Paper sx={{ p: 2, height: 400 }}>
-          <Typography variant="subtitle1" gutterBottom>
-            График времени ответа
-          </Typography>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={latencyData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis
-                dataKey="request"
-                label={{ value: 'Номер запроса', position: 'insideBottom', offset: -5 }}
-              />
-              <YAxis
-                label={{ value: 'Время (мс)', angle: -90, position: 'insideLeft' }}
-              />
-              <Tooltip
-                formatter={(value) => [`${value}мс`, 'Время ответа']}
-                labelFormatter={(label) => `Запрос #${label}`}
-              />
-              <Line
-                type="monotone"
-                dataKey="latency"
-                stroke="#8884d8"
-                dot={false}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </Paper>
-      </Box>
+      <Alert severity="info" sx={{ m: 2 }}>
+        Тест еще не запущен или выполняется
+      </Alert>
     );
   }
+
+  const { results } = test;
+  const successRate = ((results.success / results.totalRequests) * 100).toFixed(1);
+  const failureRate = ((results.failure / results.totalRequests) * 100).toFixed(1);
+
+  // Подготовка данных для графика
+  const latencyData = results.latencies.map((latency, index) => ({
+    request: index + 1,
+    latency
+  }));
 
   return (
-    <Alert severity="info">
-      Результаты теста пока не готовы.
-    </Alert>
+    <Box>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h6" gutterBottom>
+          Результаты теста: {test.name}
+        </Typography>
+        <Divider sx={{ my: 2 }} />
+      </Box>
+
+      <Grid container spacing={3}>
+        {/* Основные метрики */}
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Всего запросов"
+            value={formatNumber(results.totalRequests)}
+            color="primary"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Успешных"
+            value={`${successRate}%`}
+            subtitle={`${formatNumber(results.success)} запросов`}
+            color="success.main"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Ошибок"
+            value={`${failureRate}%`}
+            subtitle={`${formatNumber(results.failure)} запросов`}
+            color="error.main"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <StatCard
+            title="Среднее время"
+            value={formatLatency(results.averageLatency)}
+            color="info.main"
+          />
+        </Grid>
+
+        {/* График латентности */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2, mb: 3, height: 400 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              График времени ответа
+            </Typography>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={latencyData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis
+                  dataKey="request"
+                  label={{ value: 'Номер запроса', position: 'insideBottom', offset: -5 }}
+                />
+                <YAxis
+                  label={{ value: 'Время (мс)', angle: -90, position: 'insideLeft' }}
+                />
+                <Tooltip
+                  formatter={(value) => [`${value}мс`, 'Время ответа']}
+                  labelFormatter={(label) => `Запрос #${label}`}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="latency"
+                  stroke="#8884d8"
+                  dot={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </Paper>
+        </Grid>
+
+        {/* Перцентили */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Распределение времени ответа
+            </Typography>
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="body2" color="textSecondary">
+                  P50 (медиана)
+                </Typography>
+                <Typography variant="h6">
+                  {formatLatency(results.percentiles.p50)}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="body2" color="textSecondary">
+                  P90
+                </Typography>
+                <Typography variant="h6">
+                  {formatLatency(results.percentiles.p90)}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="body2" color="textSecondary">
+                  P95
+                </Typography>
+                <Typography variant="h6">
+                  {formatLatency(results.percentiles.p95)}
+                </Typography>
+              </Grid>
+              <Grid item xs={12} sm={6} md={3}>
+                <Typography variant="body2" color="textSecondary">
+                  P99
+                </Typography>
+                <Typography variant="h6">
+                  {formatLatency(results.percentiles.p99)}
+                </Typography>
+              </Grid>
+            </Grid>
+          </Paper>
+        </Grid>
+
+        {/* Статус коды */}
+        <Grid item xs={12}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="subtitle1" gutterBottom>
+              Распределение статус кодов
+            </Typography>
+            <Grid container spacing={2}>
+              {Object.entries(results.statusCodes).map(([code, count]) => (
+                <Grid item xs={6} sm={4} md={2} key={code}>
+                  <Box sx={{ textAlign: 'center', p: 1 }}>
+                    <Typography
+                      variant="h6"
+                      color={
+                        code >= 200 && code < 300
+                          ? 'success.main'
+                          : code >= 300 && code < 400
+                          ? 'info.main'
+                          : code >= 400 && code < 500
+                          ? 'warning.main'
+                          : 'error.main'
+                      }
+                    >
+                      {code}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {formatNumber(count)}
+                    </Typography>
+                  </Box>
+                </Grid>
+              ))}
+            </Grid>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
   );
 }

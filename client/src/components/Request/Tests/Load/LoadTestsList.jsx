@@ -52,10 +52,7 @@ const formatDuration = (seconds) => {
   return `${minutes}м ${remainingSeconds}с`;
 };
 
-export default function LoadTestsList({ collectionId, onSelect }) {
-  const [tests, setTests] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+export default function LoadTestsList({ tests, loading, collectionId, onSelect, onRefresh }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [orderBy, setOrderBy] = useState('createdAt');
@@ -63,31 +60,7 @@ export default function LoadTestsList({ collectionId, onSelect }) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [testToDelete, setTestToDelete] = useState(null);
   const [runningTests, setRunningTests] = useState(new Set());
-
-  const fetchTests = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = {
-        collectionId,
-        page: page + 1,
-        limit: rowsPerPage,
-        sort: orderBy,
-        order
-      };
-      const { data } = await axios.get('/api/tests/load', { params });
-      setTests(data);
-    } catch (e) {
-      setError('Не удалось загрузить список тестов');
-      console.error('Ошибка загрузки тестов:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTests();
-  }, [collectionId, page, rowsPerPage, orderBy, order]);
+  const [error, setError] = useState(null);
 
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
@@ -113,8 +86,10 @@ export default function LoadTestsList({ collectionId, onSelect }) {
     if (!testToDelete) return;
     
     try {
-      await axios.delete(`/api/tests/load/${testToDelete._id}`);
-      setTests(prev => prev.filter(t => t._id !== testToDelete._id));
+      await axios.delete(`/api/tests/load/${testToDelete._id}`, {
+        withCredentials: true
+      });
+      onRefresh(); // Обновляем список после удаления
       setDeleteDialogOpen(false);
       setTestToDelete(null);
     } catch (e) {
@@ -126,10 +101,12 @@ export default function LoadTestsList({ collectionId, onSelect }) {
   const handleRunTest = async (id) => {
     try {
       setRunningTests(prev => new Set([...prev, id]));
-      await axios.post(`/api/tests/load/${id}/run`);
+      await axios.post(`/api/tests/load/${id}/run`, {}, {
+        withCredentials: true
+      });
       // Обновляем список через 5 секунд
       setTimeout(() => {
-        fetchTests();
+        onRefresh();
         setRunningTests(prev => {
           const next = new Set(prev);
           next.delete(id);
@@ -146,6 +123,24 @@ export default function LoadTestsList({ collectionId, onSelect }) {
       });
     }
   };
+
+  // Сортируем и фильтруем тесты
+  const sortedTests = React.useMemo(() => {
+    return [...tests].sort((a, b) => {
+      const aValue = orderBy.split('.').reduce((obj, key) => obj[key], a);
+      const bValue = orderBy.split('.').reduce((obj, key) => obj[key], b);
+      
+      if (order === 'asc') {
+        return aValue > bValue ? 1 : -1;
+      }
+      return aValue < bValue ? 1 : -1;
+    });
+  }, [tests, orderBy, order]);
+
+  // Пагинация
+  const paginatedTests = React.useMemo(() => {
+    return sortedTests.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  }, [sortedTests, page, rowsPerPage]);
 
   const getStatusChip = (test) => {
     if (runningTests.has(test._id)) {
@@ -167,15 +162,15 @@ export default function LoadTestsList({ collectionId, onSelect }) {
   return (
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-        <Typography variant="h6">Нагрузочные тесты</Typography>
-        <Button
+        <Typography variant="h6">Мои нагрузочные тесты</Typography>
+              <Button
           variant="outlined"
           startIcon={<RefreshIcon />}
-          onClick={fetchTests}
+          onClick={onRefresh}
           disabled={loading}
         >
           Обновить
-        </Button>
+              </Button>
       </Box>
 
       {error && (
@@ -184,11 +179,19 @@ export default function LoadTestsList({ collectionId, onSelect }) {
         </Alert>
       )}
 
-      <TableContainer component={Paper}>
+      <TableContainer 
+        component={Paper} 
+        sx={{ 
+          boxShadow: 'none',
+          border: '1px solid',
+          borderColor: 'divider',
+          borderRadius: 2
+        }}
+      >
         {loading && <LinearProgress />}
         <Table>
           <TableHead>
-            <TableRow>
+            <TableRow sx={{ '& th': { fontWeight: 600, backgroundColor: 'background.default' } }}>
               <TableCell>
                 <TableSortLabel
                   active={orderBy === 'name'}
@@ -232,56 +235,101 @@ export default function LoadTestsList({ collectionId, onSelect }) {
             </TableRow>
           </TableHead>
           <TableBody>
-            {tests.map(test => (
-              <TableRow key={test._id}>
-                <TableCell>{test.name}</TableCell>
+            {paginatedTests.map(test => (
+              <TableRow 
+                key={test._id}
+                hover
+                sx={{ 
+                  '&:hover': { backgroundColor: 'action.hover' },
+                  cursor: 'pointer',
+                  '& td': { py: 1.5 }
+                }}
+                onClick={() => onSelect && onSelect(test._id)}
+              >
+                <TableCell>
+                  <Typography variant="body2" fontWeight={500}>
+                    {test.name}
+                  </Typography>
+                </TableCell>
                 <TableCell>
                   <Tooltip title={test.request.url}>
-                    <Typography noWrap sx={{ maxWidth: 200 }}>
+                    <Typography 
+                      variant="body2" 
+                      noWrap 
+                      sx={{ 
+                        maxWidth: 200,
+                        color: 'text.secondary'
+                      }}
+                    >
                       {test.request.url}
                     </Typography>
                   </Tooltip>
                 </TableCell>
-                <TableCell>{test.request.method}</TableCell>
-                <TableCell>{formatDuration(test.config.duration)}</TableCell>
-                <TableCell>{test.config.rate}</TableCell>
-                <TableCell>{formatDate(test.createdAt)}</TableCell>
+                <TableCell>
+                  <Chip
+                    label={test.request.method}
+                    size="small"
+                    color={
+                      test.request.method === 'GET' ? 'success' :
+                      test.request.method === 'POST' ? 'primary' :
+                      test.request.method === 'PUT' ? 'warning' :
+                      test.request.method === 'DELETE' ? 'error' : 'default'
+                    }
+                    sx={{ minWidth: 70 }}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">
+                    {formatDuration(test.config.duration)}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2">
+                    {test.config.rate} RPS
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" color="text.secondary">
+                    {formatDate(test.createdAt)}
+                  </Typography>
+                </TableCell>
                 <TableCell>{getStatusChip(test)}</TableCell>
                 <TableCell align="right">
-                  <Tooltip title="Запустить">
-                    <IconButton
-                      onClick={() => handleRunTest(test._id)}
-                      disabled={runningTests.has(test._id)}
-                      size="small"
-                    >
-                      <PlayIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Показать результат">
-                    <IconButton
-                      onClick={() => onSelect && onSelect(test._id)}
-                      size="small"
-                    >
-                      <ViewIcon />
-                    </IconButton>
-                  </Tooltip>
-                  <Tooltip title="Удалить">
-                    <IconButton
-                      onClick={() => handleDeleteClick(test)}
-                      color="error"
-                      size="small"
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Tooltip>
+                  <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
+                    <Tooltip title="Запустить">
+                      <IconButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRunTest(test._id);
+                        }}
+                        disabled={runningTests.has(test._id)}
+                        size="small"
+                        color="primary"
+                      >
+                        <PlayIcon />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Удалить">
+                      <IconButton
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteClick(test);
+                        }}
+                        color="error"
+                        size="small"
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Tooltip>
+                  </Box>
                 </TableCell>
               </TableRow>
             ))}
-            {tests.length === 0 && !loading && (
+            {paginatedTests.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={8} align="center">
-                  <Typography color="textSecondary">
-                    Тесты не найдены
+                <TableCell colSpan={8} align="center" sx={{ py: 4 }}>
+                  <Typography color="text.secondary">
+                    У вас пока нет нагрузочных тестов
                   </Typography>
                 </TableCell>
               </TableRow>
@@ -291,13 +339,13 @@ export default function LoadTestsList({ collectionId, onSelect }) {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25]}
           component="div"
-          count={-1}
+          count={tests.length}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}
           onRowsPerPageChange={handleChangeRowsPerPage}
           labelRowsPerPage="Строк на странице:"
-          labelDisplayedRows={({ from, to }) => `${from}-${to}`}
+          labelDisplayedRows={({ from, to, count }) => `${from}-${to} из ${count}`}
         />
       </TableContainer>
 
