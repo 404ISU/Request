@@ -23,7 +23,8 @@ import {
   TextField,
   Box,
   Menu,
-  Portal
+  Portal,
+  Pagination
 } from '@mui/material';
 import {
   SendRounded,
@@ -122,6 +123,11 @@ export default function RequestForm() {
   const [newItemDialogOpen, setNewItemDialogOpen] = useState(false);
   const [newItemType, setNewItemType] = useState('request');
   const [newItemName, setNewItemName] = useState('');
+  const [history, setHistory] = useState([]);
+  const [historySearch, setHistorySearch] = useState('');
+  const [historyFilter, setHistoryFilter] = useState('all');
+  const [historyPage, setHistoryPage] = useState(0);
+  const [historyRowsPerPage] = useState(10);
 
   // === Загрузка истории запросов ===
   useEffect(() => {
@@ -135,7 +141,7 @@ export default function RequestForm() {
         withCredentials: true
       });
       const parsedRequests = resp.data.map(parseServerRequest);
-      setRequestHistory(parsedRequests);
+      setHistory(parsedRequests);
     } catch (err) {
       console.error('Error fetching history:', err);
       setError('Failed to load request history');
@@ -561,12 +567,43 @@ export default function RequestForm() {
   );
 
   const urlSuggestions = React.useMemo(
-    () => [...new Set(requestHistory.map(req => req?.url).filter(url => url))],
-    [requestHistory]
+    () => [...new Set(history.map(req => req?.url).filter(url => url))],
+    [history]
   );
 
   const handleTabChange = (_, newValue) => {
     setActiveTab(newValue);
+  };
+
+  // === Фильтрация и поиск истории ===
+  const filteredHistory = React.useMemo(() => {
+    return history.filter(req => {
+      const matchesSearch = req.url.toLowerCase().includes(historySearch.toLowerCase()) ||
+                          req.method.toLowerCase().includes(historySearch.toLowerCase());
+      
+      const matchesFilter = historyFilter === 'all' ? true :
+                          historyFilter === 'success' ? req.response?.status < 400 :
+                          historyFilter === 'error' ? req.response?.status >= 400 :
+                          historyFilter === 'get' ? req.method === 'GET' :
+                          historyFilter === 'post' ? req.method === 'POST' :
+                          historyFilter === 'put' ? req.method === 'PUT' :
+                          historyFilter === 'delete' ? req.method === 'DELETE' :
+                          historyFilter === 'patch' ? req.method === 'PATCH' :
+                          historyFilter === 'head' ? req.method === 'HEAD' :
+                          historyFilter === 'options' ? req.method === 'OPTIONS' :
+                          historyFilter === 'trace' ? req.method === 'TRACE' : true;
+
+      return matchesSearch && matchesFilter;
+    });
+  }, [history, historySearch, historyFilter]);
+
+  const paginatedHistory = React.useMemo(() => {
+    const start = historyPage * historyRowsPerPage;
+    return filteredHistory.slice(start, start + historyRowsPerPage);
+  }, [filteredHistory, historyPage, historyRowsPerPage]);
+
+  const handleHistoryPageChange = (event, newPage) => {
+    setHistoryPage(newPage - 1);
   };
 
   return (
@@ -622,7 +659,7 @@ export default function RequestForm() {
               <Tab label="История" icon={<HistoryRounded />} />
               <Tab label="WebSocket" icon={<WifiTetheringRounded />} />
               <Tab label="Нагрузочное тестирование" icon={<AssessmentRounded />} />
-              <Tab label="Переменные" icon={<SettingsRounded />} />
+              {/* <Tab label="Переменные" icon={<SettingsRounded />} /> */}
             </Tabs>
 
             {activeTab === 2 ? (
@@ -633,9 +670,11 @@ export default function RequestForm() {
               <Box sx={{ flex: 1, overflow: 'hidden', p: 2 }}>
                 <LoadTestTab collectionId={requestState.collectionId} />
               </Box>
-            ) : activeTab === 4 ? (
-              <EnvironmentVariables variables={envVars} onChange={setEnvVars} />
-            ) : (
+            ) 
+            // : activeTab === 4 ? (
+            //   <EnvironmentVariables variables={envVars} onChange={setEnvVars} />
+            // ) 
+            : (
               <Grid container spacing={3} sx={{ flex: 1, overflow: 'auto', p: 2 }}>
                 {/* Левая часть: форма */}
                 <Grid item xs={12} md={6} lg={6} sx={{ height: '100%' }}>
@@ -707,53 +746,102 @@ export default function RequestForm() {
                       </Stack>
                     ) : activeTab === 1 ? (
                       <Stack spacing={1} sx={{ flex: 1, overflow: 'auto' }}>
+                        <Stack direction="row" spacing={2} sx={{ mb: 2, p: 2 }}>
+                          <TextField
+                            size="small"
+                            placeholder="Поиск по URL или методу..."
+                            value={historySearch}
+                            onChange={(e) => setHistorySearch(e.target.value)}
+                            sx={{ flex: 1 }}
+                          />
+                          <Select
+                            size="small"
+                            value={historyFilter}
+                            onChange={(e) => setHistoryFilter(e.target.value)}
+                            sx={{ minWidth: 120 }}
+                          >
+                            <MenuItem value="all">Все запросы</MenuItem>
+                            <MenuItem value="success">Успешные</MenuItem>
+                            <MenuItem value="error">Ошибки</MenuItem>
+                            <Divider />
+                            <MenuItem value="get">GET</MenuItem>
+                            <MenuItem value="post">POST</MenuItem>
+                            <MenuItem value="put">PUT</MenuItem>
+                            <MenuItem value="delete">DELETE</MenuItem>
+                            <MenuItem value="patch">PATCH</MenuItem>
+                            <MenuItem value="head">HEAD</MenuItem>
+                            <MenuItem value="options">OPTIONS</MenuItem>
+                            <MenuItem value="trace">TRACE</MenuItem>
+                          </Select>
+                        </Stack>
                         {loadingHistory ? (
                           <LinearProgress />
-                        ) : requestHistory.length === 0 ? (
+                        ) : filteredHistory.length === 0 ? (
                           <Typography color="text.secondary" sx={{ p: 2 }}>
-                            В истории запросов не найдено
+                            {historySearch || historyFilter !== 'all' 
+                              ? 'Запросы не найдены' 
+                              : 'В истории запросов не найдено'}
                           </Typography>
                         ) : (
-                          requestHistory.map((req) => (
-                            <Paper
-                              key={req.id}
-                              sx={{
-                                p: 1.5,
-                                cursor: 'pointer',
-                                '&:hover': { bgcolor: 'action.hover' },
-                                transition: 'all 0.2s'
-                              }}
-                              onClick={() => {
-                                setApiUrl(req.url);
-                                setMethod(req.method);
-                                setHeaders(JSON.stringify(req.headers, null, 2));
-                                setBody(req.body ? JSON.stringify(req.body, null, 2) : '');
-                                setQueryParams(JSON.stringify(req.query, null, 2));
-                                setResponse(req.response);
-                                setActiveTab(0);
-                              }}
-                            >
-                              <Stack direction="row" alignItems="center" spacing={1.5}>
-                                <Chip
-                                  label={req.method}
-                                  color={
-                                    req.response?.status >= 400
-                                      ? 'error'
-                                      : req.method === 'GET'
-                                      ? 'success'
-                                      : 'warning'
-                                  }
-                                  size="small"
-                                />
-                                <Typography variant="body2" noWrap sx={{ flex: 1 }}>
-                                  {req.url}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {new Date(req.timestamp).toLocaleTimeString()}
-                                </Typography>
-                              </Stack>
-                            </Paper>
-                          ))
+                          <>
+                            {paginatedHistory.map((req) => (
+                              <Paper
+                                key={req.id}
+                                sx={{
+                                  p: 1.5,
+                                  cursor: 'pointer',
+                                  '&:hover': { bgcolor: 'action.hover' },
+                                  transition: 'all 0.2s'
+                                }}
+                                onClick={() => {
+                                  setRequestState(prev => ({
+                                    ...prev,
+                                    url: req.url,
+                                    method: req.method,
+                                    headers: JSON.stringify(req.headers, null, 2),
+                                    body: req.body ? JSON.stringify(req.body, null, 2) : '',
+                                    queryParams: JSON.stringify(req.query, null, 2)
+                                  }));
+                                  setApiUrl(req.url);
+                                  setMethod(req.method);
+                                  setHeaders(JSON.stringify(req.headers, null, 2));
+                                  setBody(req.body ? JSON.stringify(req.body, null, 2) : '');
+                                  setQueryParams(JSON.stringify(req.query, null, 2));
+                                  setResponse(req.response);
+                                  setActiveTab(0);
+                                }}
+                              >
+                                <Stack direction="row" alignItems="center" spacing={1.5}>
+                                  <Chip
+                                    label={req.method}
+                                    color={
+                                      req.response?.status >= 400
+                                        ? 'error'
+                                        : req.method === 'GET'
+                                        ? 'success'
+                                        : 'warning'
+                                    }
+                                    size="small"
+                                  />
+                                  <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                                    {req.url}
+                                  </Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {new Date(req.timestamp).toLocaleTimeString()}
+                                  </Typography>
+                                </Stack>
+                              </Paper>
+                            ))}
+                            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+                              <Pagination
+                                count={Math.ceil(filteredHistory.length / historyRowsPerPage)}
+                                page={historyPage + 1}
+                                onChange={handleHistoryPageChange}
+                                color="primary"
+                                size="small"
+                              />
+                            </Box>
+                          </>
                         )}
                       </Stack>
                     ) : null}
