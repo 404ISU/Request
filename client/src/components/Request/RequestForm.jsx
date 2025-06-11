@@ -24,7 +24,12 @@ import {
   Box,
   Menu,
   Portal,
-  Pagination
+  Pagination,
+  List,
+  ListItem,
+  ListItemIcon,
+  ListItemText,
+  Tooltip
 } from '@mui/material';
 import {
   SendRounded,
@@ -37,7 +42,14 @@ import {
   Add,
   WifiTetheringRounded,
   BugReportRounded,
-  AssessmentRounded
+  AssessmentRounded,
+  SecurityRounded,
+  LinkRounded,
+  StorageRounded,
+  CheckCircleRounded,
+  CheckCircle,
+  Cancel,
+  Info
 } from '@mui/icons-material';
 import { DndContext, closestCenter } from '@dnd-kit/core';
 import { SortableContext } from '@dnd-kit/sortable';
@@ -128,6 +140,7 @@ export default function RequestForm() {
   const [historyFilter, setHistoryFilter] = useState('all');
   const [historyPage, setHistoryPage] = useState(0);
   const [historyRowsPerPage] = useState(10);
+  const [advancedSettingsTab, setAdvancedSettingsTab] = useState(0);
 
   // === Загрузка истории запросов ===
   useEffect(() => {
@@ -575,6 +588,10 @@ export default function RequestForm() {
     setActiveTab(newValue);
   };
 
+  const handleAdvancedSettingsTabChange = (event, newValue) => {
+    setAdvancedSettingsTab(newValue);
+  };
+
   // === Фильтрация и поиск истории ===
   const filteredHistory = React.useMemo(() => {
     return history.filter(req => {
@@ -701,27 +718,64 @@ export default function RequestForm() {
                             <SectionHeader title="Расширенные настройки" icon={<SettingsRounded />} sectionKey="advanced" />
                             {expandedSections.advanced && (
                               <Stack spacing={2}>
-                                <AuthInput value={auth} onChange={setAuth} compact />
-                                <QueryParamsInput value={queryParams} onChange={setQueryParams} />
-                                <HeadersInput value={headers} onChange={setHeaders} />
-                                <BodyInput value={body} onChange={setBody} method={method} />
-                                <AssertionsInput onChange={setAssertions} />
-                                {assertionResults.length > 0 && (
-                                  <Box>
-                                    <Typography variant="subtitle1" gutterBottom>
-                                      Результаты проверок
-                                    </Typography>
-                                    {assertionResults.map(r => (
-                                      <Typography
-                                        key={r.assertionId}
-                                        color={r.passed ? 'success.main' : 'error.main'}
-                                        sx={{ mb: 1 }}
-                                      >
-                                        {r.message}
-                                      </Typography>
-                                    ))}
-                                  </Box>
-                                )}
+                                <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+                                  <Tabs
+                                    value={advancedSettingsTab}
+                                    onChange={handleAdvancedSettingsTabChange}
+                                    variant="scrollable"
+                                    scrollButtons="auto"
+                                    sx={{ minHeight: 48 }}
+                                  >
+                                    <Tab 
+                                      icon={<SecurityRounded />} 
+                                      label="Аутентификация" 
+                                      iconPosition="start"
+                                      sx={{ minHeight: 48 }}
+                                    />
+                                    <Tab 
+                                      icon={<LinkRounded />} 
+                                      label="Параметры" 
+                                      iconPosition="start"
+                                      sx={{ minHeight: 48 }}
+                                    />
+                                    <Tab 
+                                      icon={<StorageRounded />} 
+                                      label="Заголовки" 
+                                      iconPosition="start"
+                                      sx={{ minHeight: 48 }}
+                                    />
+                                    <Tab 
+                                      icon={<CodeRounded />} 
+                                      label="Тело" 
+                                      iconPosition="start"
+                                      sx={{ minHeight: 48 }}
+                                    />
+                                    <Tab 
+                                      icon={<CheckCircleRounded />} 
+                                      label="Проверки" 
+                                      iconPosition="start"
+                                      sx={{ minHeight: 48 }}
+                                    />
+                                  </Tabs>
+                                </Box>
+
+                                <Box sx={{ p: 1 }}>
+                                  {advancedSettingsTab === 0 && (
+                                    <AuthInput value={auth} onChange={setAuth} compact />
+                                  )}
+                                  {advancedSettingsTab === 1 && (
+                                    <QueryParamsInput value={queryParams} onChange={setQueryParams} />
+                                  )}
+                                  {advancedSettingsTab === 2 && (
+                                    <HeadersInput value={headers} onChange={setHeaders} />
+                                  )}
+                                  {advancedSettingsTab === 3 && (
+                                    <BodyInput value={body} onChange={setBody} method={method} />
+                                  )}
+                                  {advancedSettingsTab === 4 && (
+                                    <AssertionsInput onChange={setAssertions} />
+                                  )}
+                                </Box>
                               </Stack>
                             )}
                           </Stack>
@@ -876,11 +930,77 @@ export default function RequestForm() {
                       {loading ? (
                         <LinearProgress sx={{ height: 2 }} />
                       ) : response ? (
-                        <ResponseDisplay
-                          data={response.data}
-                          headers={response.headers}
-                          sx={{ height: 'calc(100% - 48px)', overflow: 'auto', p: 2 }}
-                        />
+                        <>
+                          <ResponseDisplay
+                            data={response.data}
+                            headers={response.headers}
+                            sx={{ height: 'calc(100% - 48px)', overflow: 'auto', p: 2 }}
+                          />
+                          {assertionResults.length > 0 && (
+                            <Box sx={{ 
+                              borderTop: 1, 
+                              borderColor: 'divider',
+                              bgcolor: 'background.paper',
+                              p: 2
+                            }}>
+                              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+                                <Typography variant="subtitle1">
+                                  Результаты проверок
+                                </Typography>
+                                <Chip
+                                  size="small"
+                                  label={`${assertionResults.filter(r => r.passed).length}/${assertionResults.length} пройдено`}
+                                  color={assertionResults.every(r => r.passed) ? 'success' : 'warning'}
+                                />
+                              </Stack>
+                              <List>
+                                {assertionResults.map(r => (
+                                  <ListItem
+                                    key={r.assertionId}
+                                    sx={{
+                                      bgcolor: r.passed ? 'success.lighter' : 'error.lighter',
+                                      borderRadius: 1,
+                                      mb: 1,
+                                      border: '1px solid',
+                                      borderColor: r.passed ? 'success.light' : 'error.light'
+                                    }}
+                                  >
+                                    <ListItemIcon>
+                                      {r.passed ? (
+                                        <CheckCircle color="success" />
+                                      ) : (
+                                        <Cancel color="error" />
+                                      )}
+                                    </ListItemIcon>
+                                    <ListItemText
+                                      primary={
+                                        <Typography variant="body2" color={r.passed ? 'success.dark' : 'error.dark'}>
+                                          {r.type === 'status' ? 'Статус код' :
+                                           r.type === 'body' ? 'Тело ответа' :
+                                           r.type === 'headers' ? 'Заголовки' :
+                                           r.type === 'responseTime' ? 'Время ответа' : r.type}
+                                          {' '}
+                                          {r.operator}
+                                          {' '}
+                                          {r.property ? `"${r.property}"` : ''}
+                                          {' '}
+                                          {r.expected ? `"${r.expected}"` : ''}
+                                        </Typography>
+                                      }
+                                      secondary={
+                                        <Tooltip title="Фактическое значение">
+                                          <Typography variant="caption" color="text.secondary">
+                                            Получено: {String(r.actual)}
+                                          </Typography>
+                                        </Tooltip>
+                                      }
+                                    />
+                                  </ListItem>
+                                ))}
+                              </List>
+                            </Box>
+                          )}
+                        </>
                       ) : (
                         <Stack
                           spacing={2}

@@ -17,7 +17,12 @@ import {
   createTheme,
   IconButton,
   ListItemIcon,
-  Divider
+  Divider,
+  Card,
+  CardContent,
+  CardHeader,
+  Chip,
+  Stack
 } from '@mui/material';
 import {
   ContentCopy,
@@ -32,7 +37,13 @@ import {
   Api,
   Http,
   PostAdd,
-  LibraryBooks
+  LibraryBooks,
+  CheckCircle,
+  BugReport,
+  Speed,
+  CollectionsBookmark,
+  WifiTethering,
+  Assessment
 } from '@mui/icons-material';
 
 // Современная тема с градиентами и анимациями
@@ -130,75 +141,60 @@ const Documentation = () => {
           
           <Typography variant="h3" gutterBottom sx={{ color: '#fff', mt: 2 }}>
             <LibraryBooks sx={{ fontSize: 48, verticalAlign: 'middle', mr: 2 }} />
-            API Tester Docs
+            API Tester
           </Typography>
           <Typography variant="h6" sx={{ opacity: 0.9 }}>
-            Полное руководство по работе с инструментом тестирования API
+            Мощный инструмент для тестирования и отладки API
           </Typography>
         </Box>
 
-        {/* Быстрый старт */}
-        <Paper sx={{ p: 4, mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <Send color="primary" sx={{ fontSize: 40, mr: 2 }} />
-            <Typography variant="h4">Быстрый старт</Typography>
-          </Box>
-          
-          <List dense>
-            {[
-              '1. Введите URL API в поле ввода',
-              '2. Выберите метод запроса',
-              '3. Настройте параметры (при необходимости)',
-              '4. Нажмите "Отправить запрос"',
-              '5. Анализируйте ответ в правой панели'
-            ].map((text) => (
-              <ListItem key={text}>
-                <ListItemIcon>
-                  <Code color="primary" />
-                </ListItemIcon>
-                <ListItemText primary={text} />
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
-
-        {/* Основные функции */}
-        <Paper sx={{ p: 4, mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <Settings color="primary" sx={{ fontSize: 40, mr: 2 }} />
-            <Typography variant="h4">Основные функции</Typography>
-          </Box>
-
-          <Grid container spacing={3}>
-            {[
-              { 
-                icon: <Http />,
-                title: 'Поддержка методов',
-                content: 'GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS'
-              },
-              {
-                icon: <Security />,
-                title: 'Авторизация',
-                content: 'Bearer Token, Basic Auth, OAuth 2.0'
-              },
-              {
-                icon: <Code />,
-                title: 'Форматы данных',
-                content: 'JSON, XML, FormData, Text, Binary'
-              },
-              {
-                icon: <History />,
-                title: 'История запросов',
-                content: 'Автосохранение, поиск, повторная отправка'
-              }
-            ].map((feature) => (
-              <Grid item xs={12} md={6} key={feature.title}>
-                <Box sx={{
-                  p: 3,
-                  height: '100%',
-                  border: `1px solid ${modernTheme.palette.divider}`,
-                  borderRadius: 2
-                }}>
+        {/* Основные возможности */}
+        <Grid container spacing={3} sx={{ mb: 4 }}>
+          {[
+            {
+              icon: <Http />,
+              title: 'HTTP Запросы',
+              description: 'Поддержка всех основных HTTP методов: GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS, TRACE'
+            },
+            {
+              icon: <Security />,
+              title: 'Аутентификация',
+              description: 'Bearer Token и Basic Auth для безопасного доступа к API'
+            },
+            {
+              icon: <CheckCircle />,
+              title: 'Автоматические проверки',
+              description: 'Проверка статуса, тела ответа, заголовков и времени ответа'
+            },
+            {
+              icon: <History />,
+              title: 'История запросов',
+              description: 'Поиск, фильтрация и повторное использование предыдущих запросов'
+            },
+            {
+              icon: <CollectionsBookmark />,
+              title: 'Коллекции',
+              description: 'Организация запросов в коллекции и папки'
+            },
+            {
+              icon: <WifiTethering />,
+              title: 'WebSocket',
+              description: 'Тестирование WebSocket соединений в реальном времени'
+            },
+            {
+              icon: <Assessment />,
+              title: 'Нагрузочное тестирование',
+              description: 'Проверка производительности API под нагрузкой'
+            },
+            {
+              icon: <BugReport />,
+              title: 'Отладка',
+              description: 'Детальный анализ ответов и ошибок'
+            }
+          ].map((feature) => (
+            <Grid item xs={12} sm={6} md={3} key={feature.title}>
+              <Card sx={{ height: '100%' }}>
+                <CardContent>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                     <Box sx={{
                       background: modernTheme.palette.primary.gradient,
@@ -212,75 +208,216 @@ const Documentation = () => {
                     <Typography variant="h6">{feature.title}</Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary">
-                    {feature.content}
+                    {feature.description}
                   </Typography>
-                </Box>
-              </Grid>
-            ))}
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+
+        {/* Пошаговое руководство */}
+        <Paper sx={{ p: 4, mb: 4 }}>
+          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+            <Send sx={{ mr: 2 }} /> Пошаговое руководство
+          </Typography>
+
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="1. Создание запроса" />
+                <CardContent>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon><Code /></ListItemIcon>
+                      <ListItemText 
+                        primary="Введите URL API"
+                        secondary="Поддерживаются переменные окружения в формате {{variable}}"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon><Http /></ListItemIcon>
+                      <ListItemText 
+                        primary="Выберите метод запроса"
+                        secondary="GET, POST, PUT, DELETE и другие"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon><Settings /></ListItemIcon>
+                      <ListItemText 
+                        primary="Настройте параметры"
+                        secondary="Заголовки, тело запроса, параметры URL"
+                      />
+                    </ListItem>
+                  </List>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="2. Расширенные настройки" />
+                <CardContent>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon><Security /></ListItemIcon>
+                      <ListItemText 
+                        primary="Аутентификация"
+                        secondary="Bearer Token или Basic Auth"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon><CheckCircle /></ListItemIcon>
+                      <ListItemText 
+                        primary="Проверки"
+                        secondary="Настройка автоматических проверок ответа"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon><CollectionsBookmark /></ListItemIcon>
+                      <ListItemText 
+                        primary="Сохранение"
+                        secondary="Сохранение запроса в коллекцию"
+                      />
+                    </ListItem>
+                  </List>
+                </CardContent>
+              </Card>
+            </Grid>
           </Grid>
         </Paper>
 
         {/* Примеры использования */}
         <Paper sx={{ p: 4, mb: 4 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-            <PostAdd color="primary" sx={{ fontSize: 40, mr: 2 }} />
-            <Typography variant="h4">Примеры использования</Typography>
-          </Box>
+          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+            <PostAdd sx={{ mr: 2 }} /> Примеры использования
+          </Typography>
 
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <Typography>Пример GET запроса</Typography>
+              <Typography>Пример GET запроса с проверками</Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Box component="pre" sx={{
-                p: 2,
-                borderRadius: 1,
-                background: '#f8f9ff',
-                position: 'relative'
-              }}>
-                <IconButton size="small" sx={{ position: 'absolute', right: 8, top: 8 }}>
-                  <ContentCopy fontSize="small" />
-                </IconButton>
-                {`GET https://api.example.com/data
-Headers:
-  Authorization: Bearer <token>
-  Content-Type: application/json`}
-              </Box>
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>URL и метод:</Typography>
+                  <Box component="pre" sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                    GET https://api.example.com/users
+                  </Box>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>Заголовки:</Typography>
+                  <Box component="pre" sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                    {`{
+  "Authorization": "Bearer your-token",
+  "Content-Type": "application/json"
+}`}
+                  </Box>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>Проверки:</Typography>
+                  <Box component="pre" sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                    {`[
+  {
+    "type": "status",
+    "operator": "равно",
+    "expected": "200"
+  },
+  {
+    "type": "body",
+    "property": "users.length",
+    "operator": "больше чем",
+    "expected": "0"
+  }
+]`}
+                  </Box>
+                </Box>
+              </Stack>
             </AccordionDetails>
           </Accordion>
 
           <Accordion>
             <AccordionSummary expandIcon={<ExpandMore />}>
-              <Typography>Пример POST запроса</Typography>
+              <Typography>Пример POST запроса с телом</Typography>
             </AccordionSummary>
             <AccordionDetails>
-              <Box component="pre" sx={{
-                p: 2,
-                borderRadius: 1,
-                background: '#f8f9ff'
-              }}>
-                {`POST https://api.example.com/users
-Body:
-{
+              <Stack spacing={2}>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>URL и метод:</Typography>
+                  <Box component="pre" sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                    POST https://api.example.com/users
+                  </Box>
+                </Box>
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom>Тело запроса:</Typography>
+                  <Box component="pre" sx={{ p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
+                    {`{
   "name": "John Doe",
-  "email": "john@example.com"
+  "email": "john@example.com",
+  "role": "user"
 }`}
-              </Box>
+                  </Box>
+                </Box>
+              </Stack>
             </AccordionDetails>
           </Accordion>
         </Paper>
 
-        {/* Поддержка */}
-        <Paper sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h6" gutterBottom>
-            Нужна помощь?
+        {/* Советы и рекомендации */}
+        <Paper sx={{ p: 4 }}>
+          <Typography variant="h4" gutterBottom sx={{ display: 'flex', alignItems: 'center' }}>
+            <Settings sx={{ mr: 2 }} /> Советы и рекомендации
           </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            Обратитесь в нашу поддержку:
-          </Typography>
-          <Link href="mailto:support@apitest.com" color="primary">
-            support@apitest.com
-          </Link>
+
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="Работа с коллекциями" />
+                <CardContent>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon><CollectionsBookmark /></ListItemIcon>
+                      <ListItemText 
+                        primary="Организуйте запросы"
+                        secondary="Создавайте коллекции и папки для группировки связанных запросов"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon><History /></ListItemIcon>
+                      <ListItemText 
+                        primary="Используйте историю"
+                        secondary="Повторно используйте успешные запросы из истории"
+                      />
+                    </ListItem>
+                  </List>
+                </CardContent>
+              </Card>
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <Card>
+                <CardHeader title="Эффективное тестирование" />
+                <CardContent>
+                  <List>
+                    <ListItem>
+                      <ListItemIcon><CheckCircle /></ListItemIcon>
+                      <ListItemText 
+                        primary="Автоматические проверки"
+                        secondary="Настраивайте проверки для автоматической валидации ответов"
+                      />
+                    </ListItem>
+                    <ListItem>
+                      <ListItemIcon><Speed /></ListItemIcon>
+                      <ListItemText 
+                        primary="Нагрузочное тестирование"
+                        secondary="Используйте нагрузочное тестирование для проверки производительности"
+                      />
+                    </ListItem>
+                  </List>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
         </Paper>
       </Container>
     </ThemeProvider>
